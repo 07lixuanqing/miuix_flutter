@@ -1,0 +1,16 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # Android ABI overlays and Flutter's generated intermediates may contain a
+    # copied SDK. They are build products, not package source to lint.
+    - "**/build/**"
+    - "**/.dart_tool/**"
+  errors:
+    public_member_api_docs: ignore
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_literals_to_create_immutables: true
+    sort_child_properties_last: true

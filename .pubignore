@@ -1,0 +1,31 @@
+# Repository state and generated dependency metadata.
+.git/
+.dart_tool/
+.agents/
+.idea/
+.vscode/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Build, verification, release, and visual-comparison outputs.
+build/
+releases/
+artifacts/
+test/
+example/
+tool/
+
+# Local scratch captures and command logs kept at the repository root.
+/*.png
+/*.xml
+/*.txt
+/*.log
+/_*
+/tmp-*
+
+# Python and desktop operating-system cache files.
+**/__pycache__/
+**/*.pyc
+Thumbs.db
+.DS_Store

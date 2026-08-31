@@ -1,0 +1,70 @@
+name: miuix_flutter_example
+description: Localized reference application for flutter_miuix.
+publish_to: none
+# Android accepts an overwrite only when the new versionCode is not lower.
+# Distributable APKs must use tool/build_android_arm64_release.ps1; that script
+# supplies a monotonic time-based build number and verifies the final package.
+# The release script refreshes this fallback to the final split APK code so a
+# later direct Flutter build can still replace the most recent test release.
+version: 1.2.0+30572000
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_miuix:
+    path: ..
+  libmonet: 1.1.2
+  url_launcher: ^6.3.2
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/fonts/LICENSE-NOTO.txt
+    - assets/fonts/LICENSE-ROBOTO.txt
+    # Exact generated dependency inventory consumed by LicensePage.kt.
+    - assets/data/aboutlibraries.json
+    # Unmodified 720 px Compose resource used by AboutPage.kt. The source
+    # presents this image at 74 dp inside an 88 dp white rounded container.
+    - assets/images/ic_launcher.png
+    # Exact upstream preview artwork used by BlurSection.kt.
+    - assets/images/blur_test.png
+  shaders:
+    # Direct Flutter port of the source OS2_BG_FRAG runtime effect used by
+    # BlurSection.kt. Keeping it as a compiled fragment program preserves the
+    # four moving color fields and their original per-pixel noise treatment.
+    - shaders/miuix_effect_background.frag
+  fonts:
+    # Compose uses Android's Roboto family for Latin text. These static
+    # instances come from the same Android 16 variable font used by the
+    # reference emulator, so technical icon names keep their source metrics on
+    # Windows as well as Android.
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+    - family: NotoSansCJKsc
+      fonts:
+        - asset: assets/fonts/NotoSansCJKsc-Regular.otf
+          weight: 400
+        # The Compose source explicitly uses Medium for component titles.
+        # Shipping the real Chinese face avoids a visually lighter synthetic
+        # weight when the English reference text is localized.
+        - asset: assets/fonts/NotoSansCJKsc-Medium.otf
+          weight: 500
+        # SmallTitle and selected navigation labels use the Bold source face.
+        - asset: assets/fonts/NotoSansCJKsc-Bold.otf
+          weight: 700
