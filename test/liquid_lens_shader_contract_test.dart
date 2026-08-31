@@ -3,22 +3,22 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('liquid lens keeps every Impeller platform on one shader path', () {
+  test('Android liquid lens uses the stable engine material path', () {
     final source = File(
       'lib/src/widgets/parts/navigation_bars_ios.dart',
     ).readAsStringSync();
 
     expect(
       source,
-      isNot(
-        contains('defaultTargetPlatform == TargetPlatform.android) return'),
-      ),
+      contains('defaultTargetPlatform == TargetPlatform.android) return'),
     );
-    expect(source, isNot(contains('stableShaderBackend')));
-    expect(
-      source,
-      contains('shader == null || !ui.ImageFilter.isShaderFilterSupported'),
-    );
+    expect(source, contains('defaultTargetPlatform != TargetPlatform.android'));
+    expect(source, contains("ValueKey('ios-liquid-safe-vibrancy')"));
+    expect(source, contains('ColorFiltered('));
+    expect(source, contains('final padding = useRuntimeLens'));
+    expect(source, contains('const red = .213;'));
+    expect(source, contains('const green = .715;'));
+    expect(source, contains('const blue = .072;'));
   });
 
   test('liquid lens geometry and sampling use the physical texture domain', () {

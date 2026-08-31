@@ -1314,6 +1314,11 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
 
   Future<void> _loadShader() async {
     if (_loading || _shader != null) return;
+    // Android Impeller still exposes device-dependent backdrop-input origins
+    // for ImageFilter.shader. Real arm64 screenshots have shown a horizontal
+    // split where one half samples a different texture region. Keep Android on
+    // the stable engine blur + ColorFiltered vibrancy path below.
+    if (defaultTargetPlatform == TargetPlatform.android) return;
     _loading = true;
     ui.FragmentProgram? program;
     try {
@@ -1344,18 +1349,51 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
     super.dispose();
   }
 
+  bool get _useRuntimeLens =>
+      defaultTargetPlatform != TargetPlatform.android &&
+      _shader != null &&
+      ui.ImageFilter.isShaderFilterSupported;
+
+  ColorFilter _vibrancyFilter() {
+    final saturation = widget.vibrancy;
+    final inverse = 1 - saturation;
+    const red = .213;
+    const green = .715;
+    const blue = .072;
+    return ColorFilter.matrix(<double>[
+      red * inverse + saturation,
+      green * inverse,
+      blue * inverse,
+      0,
+      0,
+      red * inverse,
+      green * inverse + saturation,
+      blue * inverse,
+      0,
+      0,
+      red * inverse,
+      green * inverse,
+      blue * inverse + saturation,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ]);
+  }
+
   ui.ImageFilter _filter({
     required Size shapeSize,
     required double padding,
     required double devicePixelRatio,
   }) {
     final shader = _shader;
-    // Flutter's Impeller runtime-effect filter absorbs a non-identity input
-    // snapshot transform into a fresh texture before invoking this shader.
-    // That makes FlutterFragCoord, u_size and the physical geometry uniforms
-    // share one origin on Android/Vulkan, Android/GLES and desktop backends.
-    // Skia and failed shader compilation retain the deterministic blur path.
-    if (shader == null || !ui.ImageFilter.isShaderFilterSupported) {
+    // Android and unsupported shader-filter backends deliberately retain one
+    // ordinary blur plane. Android's runtime shader input transform is not
+    // stable across Vulkan/GLES devices and can divide the pill horizontally.
+    if (!_useRuntimeLens) {
       return ui.ImageFilter.blur(
         sigmaX: widget.blurSigma,
         sigmaY: widget.blurSigma,
@@ -1369,7 +1407,7 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
     // Slots 0-1 are reserved for the bound texture's u_size. Shape size and a
     // negative padding offset reproduce Lens.kt's size/offset uniforms while
     // allowing the texture itself to contain the larger sampling perimeter.
-    shader
+    shader!
       ..setFloat(2, shapeSize.width * scale)
       ..setFloat(3, shapeSize.height * scale)
       ..setFloat(4, -padding * scale)
@@ -1402,16 +1440,39 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final shapeSize = constraints.biggest;
+        final useRuntimeLens = _useRuntimeLens;
         // Lens.kt raises effect padding to at least refractionAmount. Callers
         // whose signed displacement samples inward may explicitly use zero so
         // a bottom-aligned backdrop is not truncated by the window boundary.
-        final padding = widget.samplePadding ?? widget.refractionAmount.abs();
+        // The stable Android/fallback material never expands its blur plane.
+        final requestedPadding =
+            widget.samplePadding ?? widget.refractionAmount.abs();
+        final padding = useRuntimeLens ? requestedPadding : 0.0;
         final filter = _filter(
           shapeSize: shapeSize,
           padding: padding,
           devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
         );
         if (padding <= 0) {
+          if (!useRuntimeLens && (widget.vibrancy - 1).abs() > .001) {
+            // ColorFiltered operates on the filtered backdrop only; paint the
+            // semantic surface tint afterwards so its authored alpha and theme
+            // color are not saturated a second time.
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                ColorFiltered(
+                  key: const ValueKey('ios-liquid-safe-vibrancy'),
+                  colorFilter: _vibrancyFilter(),
+                  child: BackdropFilter(
+                    filter: filter,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+                widget.child,
+              ],
+            );
+          }
           return BackdropFilter(filter: filter, child: widget.child);
         }
         // Capture an expanded transparent layer, then paint the actual surface

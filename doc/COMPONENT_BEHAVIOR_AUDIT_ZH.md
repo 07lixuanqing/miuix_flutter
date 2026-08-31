@@ -1020,16 +1020,38 @@ x86_64 模拟器不作为 arm64 流畅度或视觉一致性证据。
 上述数值来自第三方 Apache-2.0 项目的公开实现，不称为小米官方 HyperOS 参数；Android 真机
 运行效果仍必须在任务自有 arm64 设备上验证，不能用 Windows/Widget Golden 代替。
 
-## 2026-08-31 第五十五批结果
+## 2026-08-31 第五十五批排查结果
 
-- 修复 HyperOS 液态底栏在窗口底边呈现“上半透明、下半模糊”的水平分层。根因是主胶囊只有
-  56dp 高，却把 BackdropFilter 的采样平面向四周额外扩展 40dp；底栏靠近窗口底边时，扩展输入
-  会被屏幕边界截断，runtime shader 的输入纹理范围因此不再与可见胶囊一致。
+- 第一阶段排查 HyperOS 液态底栏在窗口底边呈现“上半透明、下半模糊”的水平分层。主胶囊只有
+  56dp 高，却把 BackdropFilter 的采样平面向四周额外扩展 40dp；本批先消除这个确定存在的范围
+  错配，但后续 Android 实机反馈仍有分层，证明外扩裁切不是唯一根因。
 - 主镜片的负向折射位移始终朝胶囊内部采样，不需要外部 40dp 邻域。本批将默认 HyperOS 主面板
   改为零扩展、单一完整 56dp 采样平面；现有 8dp 模糊、1.5 倍 vibrancy、24/24dp 折射，以及
   手势、弹簧、选中层和显式 `.source` 兼容路径均保持不变。
 - 亮暗专用 Golden 新增结构断言：主胶囊 Rect 必须与其唯一 BackdropFilter Rect 完全相同。
   该断言会直接阻止未来再次引入上下越界、窗口裁切或半幅滤镜；示例中的四张受影响 Golden
-  也已重新生成并检查，底栏材质覆盖完整且没有水平分界线。
+  也已重新生成并检查；这些桌面测试只能证明布局和 fallback，不能证明 Android runtime shader。
+
+完整分析、全量测试、双平台 Release、库包、签名/架构与 SHA-256 由本批发布周期统一验证。
+
+## 2026-08-31 第五十六批结果
+
+- 重新隔离背景变量后确认：纵向完全不变的条纹背景在普通 Flutter blur 路径上下连续；此前亮暗
+  Golden 在截图时 runtime shader 尚未异步加载，实际覆盖的是 fallback，不能为 Android 的
+  `ImageFilter.shader` 采样正确性提供证据。
+- Git 历史显示项目曾根据 Android 真机的 padded-texture 坐标错位和异常采样证据，明确禁用
+  Android runtime lens；`1f7c5d2` 又基于“Impeller 已统一输入原点”的假设重新启用，但该假设
+  没有 arm64 真机证据，且与本轮连续实机分层反馈冲突。
+- Android 现在不再加载或绑定 `miuix_liquid_lens.frag`。完整胶囊改用 Flutter 引擎稳定的单一
+  `ImageFilter.blur`，并在该模糊结果上用 `ColorFiltered` 和同一 Rec. 709 矩阵恢复 1.5 倍
+  vibrancy，最后再绘制 40% 语义表面色。该路径无外扩采样、无上下纹理坐标换算，也没有第二个
+  BackdropFilter；桌面受支持后端仍可保留折射 shader。
+- 底栏尺寸、点击/拖拽、选中位置、弹簧、按压高光及 `.source` 交互全部保持不变。新增强制
+  `TargetPlatform.android` 的专用 Golden，并在独立 PNG 解码测试中逐像素比较三个未选中槽、
+  三组上下镜像行；纵向不变背景的 RGB/A 差值必须不超过 3，否则直接失败。
+- 新建本任务专用 API 35 x86_64 模拟器，以 OpenGLES Impeller 安装调试包，分别截取首页与设置
+  Tab 选中后的实际 Android 画面。两张画面中完整胶囊均使用连续灰色玻璃面，背景文字在上下
+  区域统一模糊；日志无 Flutter Error、Fatal 或 ANR。该证据验证 Android 布局和稳定滤镜分支，
+  但不替代 arm64 真机 GPU 验证。
 
 完整分析、全量测试、双平台 Release、库包、签名/架构与 SHA-256 由本批发布周期统一验证。

@@ -13,7 +13,8 @@
 // Every destination keeps the same horizontal allocation in every locale.
 // Optical and motion behavior begins with the current upstream liquid example.
 // Runtime screenshots additionally govern platform-specific safety revisions.
-// The panel uses a 40 percent surface tint, 4dp blur, and 24dp lens refraction.
+// The panel uses 40 percent tint, 8dp blur, and 1.5x vibrancy.
+// Stable desktop backends additionally retain 24dp lens refraction.
 // Its BloomStroke highlight follows a quantized device-gravity direction.
 // The selected destination owns a fixed 56dp circular liquid lens.
 // That lens grows from zero to 10dp depth and 14dp refraction while pressed.
@@ -204,22 +205,19 @@
 // Flutter performs that sampling with BackdropFilter.
 // The outer blur base sigma is 8 on both axes before intensity scaling.
 // The filter is clipped to the 32dp panel pill.
-// A rounded-rectangle runtime shader reproduces the source 24dp lens height.
-// The same shader reproduces the source negative 24dp refraction amount.
-// Its backdrop capture extends 40dp beyond every edge.
-// Twenty-four dp serves refraction and sixteen dp serves press-scale reach.
-// Expanded pixels are sampling input rather than visible rectangular chrome.
+// Stable desktop shader-filter backends reproduce the 24dp lens height.
+// The same desktop shader uses the source negative 24dp refraction amount.
+// Android deliberately uses one exact-bounds engine blur plane instead.
+// Android applies equivalent 1.5x vibrancy with Flutter ColorFiltered.
+// Android never binds the device-dependent ImageFilter.shader input texture.
 // The final capsule ClipRRect still owns the complete visible boundary.
 // Sampling padding must never contribute layout width or layout height.
 // Sampling padding must never become a hit-test region.
 // Sampling padding must never contribute an accessibility node.
-// Sampling padding remains centered around the unscaled 64dp panel.
+// Optional source-mode sampling padding remains centered on its local lens.
 // The panel scale transform runs outside the visible capsule clip.
 // The page is therefore still observable through every non-capsule corner.
-// Clamp fallback is permitted only at the expanded capture's outer perimeter.
-// It must not clamp at the visible capsule's left or right boundary.
-// It must not clamp at the visible capsule's top or bottom boundary.
-// A blur-only renderer uses the same expanded capture perimeter.
+// The stable Android and failed-shader fallbacks never expand their blur plane.
 // Shader load completion may replace the filter but not rebuild geometry.
 // Device-pixel conversion applies to shader uniforms, not widget layout.
 // A three-times-density host therefore retains a logical 32dp pill radius.
@@ -227,7 +225,7 @@
 // Press-scale reach remains 16 logical dp on every device density.
 // The main panel does not expand its backdrop beyond the bottom window edge.
 // The lens filter is composed outside the 8dp blur filter.
-// Unsupported shader-image-filter hosts retain a blur-only fallback.
+// Unsupported shader-image-filter hosts retain blur plus vibrancy fallback.
 // The source BloomStroke uses a one-dp outer width and two light sources.
 // Its stroke color is white at 12 percent alpha.
 // Its inner blur radius is 2dp.
@@ -310,8 +308,9 @@
 // Flutter cannot sample Compose's combined panel backdrop, so the indicator
 // retains its separately tuned 4dp source-compatibility blur before refraction.
 // Default HyperOS geometry never inserts that second indicator filter.
-// Android and other shader-filter-capable Impeller targets share one shader path.
-// Skia or shader compilation failure retains the blur-only fallback.
+// Android never loads the runtime lens after repeated real-device split input.
+// It uses exact-bounds ImageFilter.blur plus ColorFiltered vibrancy instead.
+// Skia or shader compilation failure retains that same stable material path.
 // Vibrancy mixes sampled RGB away from Rec. 709 luminance by a factor of 1.5.
 // Its output is clamped to alpha so the runtime filter remains premultiplied.
 // Each widget instance owns a mutable FragmentShader.

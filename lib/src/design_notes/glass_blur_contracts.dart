@@ -136,13 +136,14 @@ library flutter_miuix_glass_blur_contracts;
 // Alignment changes must not expand the pill vertically.
 // Safe-area bottom padding stays outside the floating glass surface.
 // The unified floating selector keeps its dedicated 24/64/4/56 geometry.
-// The panel uses the upstream 4dp blur, 24dp lens, and 40 percent tint.
+// The panel uses 8dp blur, 1.5x vibrancy, and 40 percent tint.
+// Stable desktop backends additionally retain the 24dp runtime lens.
 // The moving selector uses a second 56dp circular backdrop lens while pressed.
 // Its 56-to-78dp expansion must paint outside the panel's 64dp bounds.
 // Dragging retargets the source spring and transfers at most 4dp to the panel.
 // Position frames must retain filter subtrees to avoid repeated shader setup.
-// Android uses blur instead of ImageFilter.shader after device GPU corruption.
-// That safety fallback keeps the same tint, highlight, shadow, and intensity.
+// Android uses blur and ColorFiltered instead of the unstable runtime lens.
+// That safety path keeps vibrancy, tint, highlight, shadow, and intensity.
 // Navigation semantics expose one interactive node per destination.
 // Decorative selected overlays must not duplicate destination semantics.
 

@@ -43,7 +43,7 @@
 // Glass MiuixSurface instances inherit the behavior through MiuixGlass.
 // FloatingToolbar inherits the behavior when its glass flag is true.
 // FloatingNavigationBar inherits the behavior when its glass flag is true.
-// IosLiquidGlassNavigationBar resolves its custom 4dp blur directly.
+// IosLiquidGlassNavigationBar resolves its custom 8dp blur directly.
 // IosLiquidGlassNavigationBar resolves its 40 percent panel tint directly.
 // TopAppBar inherits the behavior when its glass flag is true.
 // BottomSheet uses MiuixGlass with a top-only 28dp radius.
