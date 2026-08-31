@@ -3220,14 +3220,19 @@ void main() {
       find.descendant(of: floatingGlass, matching: find.byType(BackdropFilter)),
       findsOneWidget,
     );
-    // The liquid panel owns its dedicated 4dp blur, local lens, and gravity-
-    // rotated BloomStroke instead of inheriting the generic navigation glass.
+    // The liquid panel owns its dedicated 4dp blur and local lens instead of
+    // inheriting the generic navigation glass. Default HyperOS geometry omits
+    // the source BloomStroke whose lower light looked like a white divider.
     expect(
       find.descendant(
         of: floatingGlass,
         matching: find.byType(MiuixHighlightOverlay),
       ),
-      findsOneWidget,
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('ios-liquid-panel-source-specular')),
+      findsNothing,
     );
     expect(
       tester.widget<Scaffold>(find.byType(Scaffold).first).extendBody,

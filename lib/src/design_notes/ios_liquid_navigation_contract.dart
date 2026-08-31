@@ -373,7 +373,9 @@
 // --------------------
 // The panel shadow is outside the rounded clip and never fills transparent corners.
 // The panel tint is the first child inside the rounded clip.
-// The base BloomStroke follows the tint and precedes interactive press light.
+// Source geometry paints its base BloomStroke after the tint.
+// HyperOS geometry omits that outline because its lower secondary light reads
+// as a white horizontal divider on bright Android content.
 // Interactive press light precedes ordinary tab glyph content.
 // Ordinary tab content precedes the moving indicator.
 // The indicator owns its own rounded clip after anisotropic transformation.

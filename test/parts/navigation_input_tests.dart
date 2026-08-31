@@ -3976,6 +3976,10 @@ void _registerNavigationInputTests() {
       findsOneWidget,
     );
     expect(
+      find.byKey(const ValueKey('ios-liquid-panel-source-specular')),
+      findsOneWidget,
+    );
+    expect(
       find.descendant(
         of: find.byType(MiuixIosLiquidGlassNavigationBar),
         matching: find.byType(BackdropFilter),
@@ -4120,6 +4124,13 @@ void _registerNavigationInputTests() {
     );
     expect(
       find.byKey(const ValueKey('ios-liquid-indicator-source-specular')),
+      findsNothing,
+    );
+    // The upstream panel BloomStroke concentrates its secondary light along
+    // the capsule's lower edge. HyperOS omits it so the bar cannot acquire a
+    // bright horizontal seam over light content.
+    expect(
+      find.byKey(const ValueKey('ios-liquid-panel-source-specular')),
       findsNothing,
     );
     expect(

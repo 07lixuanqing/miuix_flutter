@@ -755,11 +755,19 @@ class _MiuixIosLiquidGlassNavigationBarState
           key: const ValueKey('ios-liquid-surface'),
           color: surfaceColor,
         ),
-        if (glassEnabled)
-          _buildSpecular(
-            extraDegrees: -45,
-            alpha: .75,
-            radius: _panelHeight / 2,
+        // BloomStroke is part of the explicit upstream-source rendering. Its
+        // secondary light concentrates on the long lower edge of this capsule;
+        // over a bright Android backdrop that reads as a solid white divider
+        // through the floating bar. HyperOS uses the shared refracting surface
+        // without that authored outline, so its content stays visually whole.
+        if (glassEnabled && sourceInteraction)
+          KeyedSubtree(
+            key: const ValueKey('ios-liquid-panel-source-specular'),
+            child: _buildSpecular(
+              extraDegrees: -45,
+              alpha: .75,
+              radius: _panelHeight / 2,
+            ),
           ),
       ],
     );
