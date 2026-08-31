@@ -1,32 +1,32 @@
 # Release artifacts
 
-Current complete Release cycle: 1.2.1+30580000.
+Current complete Release cycle: 1.2.1+30582000.
 
 Android test application:
 
 - Stable file: flutter_miuix_example-1.2.1-android-arm64-v8a-release.apk
-- Checkpoint: flutter_miuix_example-1.2.1-android-arm64-v8a-release-30580000.apk
+- Checkpoint: flutter_miuix_example-1.2.1-android-arm64-v8a-release-30582000.apk
 - ABI: arm64-v8a only
 - Package: com.xinxin.miuix_flutter
 - Size: 45154393 bytes
-- SHA-256: DB08D9006F357FC3E21A667C9A1AA61DA1525105FA0EF5B12DB7DBAAC6F98FF1
+- SHA-256: BB1A54E6F00DAE9C4AFFC8BE2E0C1C0127349513B89116B203ADB4907B3AD969
 - Signature: APK Signature Scheme v2; local Android Debug certificate for test distribution only
 
 Windows test application:
 
 - Stable file: flutter_miuix_example-v1.2.1-windows-x64-release.zip
-- Checkpoint: flutter_miuix_example-v1.2.1-windows-x64-release-30580000.zip
+- Checkpoint: flutter_miuix_example-v1.2.1-windows-x64-release-30582000.zip
 - Architecture: Windows x64 Release
-- Size: 39062548 bytes; 60 ZIP entries
-- SHA-256: E94CFDB28FAACA0F3B1722F7750923417E43D0D8223A2DCFD54D66DC96DA9D44
+- Size: 39062570 bytes; 60 ZIP entries
+- SHA-256: CD686E4865D91413E65D47B5D6B26F7CA01F4ECE27DD7F4BB732739F32E5CADD
 
 Reusable flutter_miuix libraries:
 
-- Android: flutter_miuix-1.2.1-android.zip; 1616845 bytes; 270 entries; SHA-256 FECA2AD7B0AA748EE04A9F7BB0E643F23246CBF030373B3A8B2297C58BEC1ED4
-- Windows: flutter_miuix-1.2.1-windows.zip; 1614523 bytes; 270 entries; SHA-256 DDDB8B42563F24E32DD17A9EF6665A7FB8848D26C450B51EC0AE9F1EFC60789A
+- Android: flutter_miuix-1.2.1-android.zip; 1617314 bytes; 270 entries; SHA-256 6ADDAF892CDB41DA9686E8BF63E1386EBD95AD75036B3F34781155D46BC20544
+- Windows: flutter_miuix-1.2.1-windows.zip; 1614992 bytes; 270 entries; SHA-256 8A10A7D1A595455517F10FDA480CFBB41594DE7553C77D8C0A94CBCE1FD32D76
 - Hash manifest: flutter_miuix-1.2.1-SHA256SUMS.txt
-- Android checkpoint: flutter_miuix-1.2.1-android-30580000.zip
-- Windows checkpoint: flutter_miuix-1.2.1-windows-30580000.zip
+- Android checkpoint: flutter_miuix-1.2.1-android-30582000.zip
+- Windows checkpoint: flutter_miuix-1.2.1-windows-30582000.zip
 
 Both library archives include README.md, PLATFORM.md, doc, lib, assets, and shaders. See doc/GETTING_STARTED_ZH.md for integration instructions.
 

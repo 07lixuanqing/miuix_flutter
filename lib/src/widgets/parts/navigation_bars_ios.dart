@@ -776,9 +776,11 @@ class _MiuixIosLiquidGlassNavigationBarState
     // then a 24/24dp rounded-rectangle lens. Keep that optical order while the
     // existing HyperOS geometry, selection and gesture state remain unchanged.
     // The shader state gracefully falls back to blur on Skia or a host that
-    // cannot compile runtime image filters. Impeller now re-rasterizes
-    // transformed filter inputs before binding them, so Android uses the same
-    // physical-pixel lens path as the other Impeller targets.
+    // cannot compile runtime image filters. The signed lens displacement points
+    // into the capsule, so the complete panel must use its exact paint bounds.
+    // Expanding this backdrop past the bottom of the window gives Impeller a
+    // truncated input texture and can split the pill into transparent and
+    // blurred horizontal halves.
     if (glassEnabled) {
       background = _MiuixLiquidLensBackdrop(
         key: const ValueKey('ios-liquid-backdrop-filter'),
@@ -786,7 +788,7 @@ class _MiuixIosLiquidGlassNavigationBarState
         blurSigma: intensity.resolveBlur(8),
         refractionHeight: 24,
         refractionAmount: 24,
-        samplePadding: 40,
+        samplePadding: 0,
         vibrancy: 1.5,
         child: background,
       );
@@ -1400,9 +1402,9 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final shapeSize = constraints.biggest;
-        // Lens.kt raises effect padding to at least refractionAmount. The
-        // outer navigation caller additionally reserves 16dp for press-scale,
-        // so its explicit 40dp amount is retained even though refraction is 24.
+        // Lens.kt raises effect padding to at least refractionAmount. Callers
+        // whose signed displacement samples inward may explicitly use zero so
+        // a bottom-aligned backdrop is not truncated by the window boundary.
         final padding = widget.samplePadding ?? widget.refractionAmount.abs();
         final filter = _filter(
           shapeSize: shapeSize,

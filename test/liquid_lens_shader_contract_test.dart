@@ -43,6 +43,8 @@ void main() {
 
     expect(source, contains('blurSigma: intensity.resolveBlur(8)'));
     expect(source, contains('vibrancy: 1.5'));
+    expect(source, contains('samplePadding: 0'));
+    expect(source, isNot(contains('samplePadding: 40')));
     expect(source, contains('setFloat(14, widget.vibrancy)'));
     expect(shader, contains('uniform float u_vibrancy;'));
     expect(shader, contains('vec3(0.213, 0.715, 0.072)'));

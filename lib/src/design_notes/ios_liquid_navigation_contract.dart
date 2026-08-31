@@ -223,9 +223,9 @@
 // Shader load completion may replace the filter but not rebuild geometry.
 // Device-pixel conversion applies to shader uniforms, not widget layout.
 // A three-times-density host therefore retains a logical 32dp pill radius.
-// Its shader receives the equivalent 96 physical pixels exactly once.
+// Its shader receives the exact visible panel bounds in physical pixels.
 // Press-scale reach remains 16 logical dp on every device density.
-// Release screenshots compare the visible clip, not the hidden capture layer.
+// The main panel does not expand its backdrop beyond the bottom window edge.
 // The lens filter is composed outside the 8dp blur filter.
 // Unsupported shader-image-filter hosts retain a blur-only fallback.
 // The source BloomStroke uses a one-dp outer width and two light sources.
@@ -273,7 +273,8 @@
 // The shader declares u_size before every caller-controlled float.
 // Flutter owns u_size float slots zero and one for shader image filters.
 // Shape width and height occupy caller slots two and three.
-// Negative sampling-padding offsets occupy caller slots four and five.
+// Sampling-padding offsets occupy caller slots four and five.
+// The main panel uses zero offsets because its signed displacement points in.
 // Caller-controlled rounded-corner radii occupy float slots six through nine.
 // Radius order is top-left, top-right, bottom-right, then bottom-left.
 // Refraction height occupies float slot ten.

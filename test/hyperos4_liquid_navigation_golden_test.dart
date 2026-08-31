@@ -35,10 +35,21 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(
-        tester.getSize(find.byKey(const ValueKey('ios-liquid-panel'))).height,
-        56,
+      final panelRect = tester.getRect(
+        find.byKey(const ValueKey('ios-liquid-panel')),
       );
+      final backdropRect = tester.getRect(
+        find.descendant(
+          of: find.byKey(const ValueKey('ios-liquid-backdrop-filter')),
+          matching: find.byType(BackdropFilter),
+        ),
+      );
+      expect(
+        backdropRect,
+        panelRect,
+        reason: 'the complete pill must share one untruncated blur plane',
+      );
+      expect(panelRect.height, 56);
 
       await expectLater(
         find.byKey(const ValueKey('liquid-navigation-vivid-golden')),
