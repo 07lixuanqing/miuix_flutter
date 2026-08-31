@@ -1,8 +1,10 @@
 #version 320 es
 
-// Direct Flutter ImageFilter port of the current example's Lens.kt rounded-
-// rectangle refraction shader. The input sampler is supplied by Flutter's
-// ImageFilter.shader pipeline; all coordinates are in logical filter pixels.
+// Flutter ImageFilter adaptation of AndroidLiquidGlass's rounded-rectangle
+// refraction and vibrancy pipeline at commit 65ab177e90e5c1d8c62e70cf7755841982da65f6.
+// Copyright 2025 Kyant; source licensed under Apache-2.0.
+// The input sampler is supplied by Flutter's ImageFilter.shader pipeline; all
+// coordinates are in the physical destination-texture domain.
 #include <flutter/runtime_effect.glsl>
 
 precision highp float;
@@ -15,6 +17,7 @@ uniform float u_refraction_height;
 uniform float u_refraction_amount;
 uniform float u_depth_effect;
 uniform float u_chromatic_aberration;
+uniform float u_vibrancy;
 uniform sampler2D u_texture_input;
 
 out vec4 frag_color;
@@ -50,7 +53,18 @@ vec4 sample_input(vec2 coordinate) {
 #ifdef IMPELLER_TARGET_OPENGLES
   uv.y = 1.0 - uv.y;
 #endif
-  return texture(u_texture_input, uv);
+  vec4 sampled_color = texture(u_texture_input, uv);
+  // AndroidLiquidGlass applies a 1.5x saturation ColorMatrix before blur and
+  // refraction. Saturation is a linear transform, so applying the same matrix
+  // to each sampled result is equivalent while keeping Flutter's filter chain
+  // to one runtime lens. Clamp to alpha to preserve premultiplied output.
+  float luminance = dot(sampled_color.rgb, vec3(0.213, 0.715, 0.072));
+  sampled_color.rgb = clamp(
+    mix(vec3(luminance), sampled_color.rgb, u_vibrancy),
+    vec3(0.0),
+    vec3(sampled_color.a)
+  );
+  return sampled_color;
 }
 
 float circle_map(float value) {

@@ -1000,3 +1000,22 @@ x86_64 模拟器不作为 arm64 流畅度或视觉一致性证据。
   独立验证通过。
 
 完整分析、全量测试、双平台 Release、库包、签名/架构与 SHA-256 由本批发布周期统一验证。
+
+## 2026-08-31 第五十四批结果
+
+- 以 `Kyant0/AndroidLiquidGlass` 的提交
+  `65ab177e90e5c1d8c62e70cf7755841982da65f6` 为光学参考，复核 `LiquidBottomTabs.kt`、
+  `Lens.kt`、颜色控制和圆角折射 shader。底栏手势、弹簧、选择状态、尺寸及现有 HyperOS
+  单选中层保持不变，没有引入 Kotlin、原生 View 或平台 UI。
+- 完整底栏材质由原来的 4dp 模糊升级为参考链的 1.5 倍 vibrancy、8dp 模糊和 24/24dp
+  圆角折射。vibrancy 使用参考项目相同的 Rec. 709 系数 `.213/.715/.072`；因为颜色矩阵是
+  线性变换，Flutter 在一次镜片 runtime shader 的采样出口执行同值运算，避免新增第二个
+  BackdropFilter。
+- 默认 HyperOS 模式仍不绘制常驻 BloomStroke，避免重新出现底栏白线；移动选中区域仍只叠加
+  稳定强调色，不独立模糊。显式 `.source` 保留现有高光、深度与按压色散兼容路径。
+- 新增 shader ABI/材质链回归，确认 8dp、1.5 倍饱和度、物理像素统一域和 Impeller 路径；
+  四张受影响 Golden 已逐张检查，像素差异集中在底栏的背景清晰度和胶囊边缘，没有布局位移。
+  另增亮/暗两张高饱和彩色背景专用基线，直接锁定折射、颜色恢复、无白线和 56dp 稳定高度。
+
+上述数值来自第三方 Apache-2.0 项目的公开实现，不称为小米官方 HyperOS 参数；Android 真机
+运行效果仍必须在任务自有 arm64 设备上验证，不能用 Windows/Widget Golden 代替。

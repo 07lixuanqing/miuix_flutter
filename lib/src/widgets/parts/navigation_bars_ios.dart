@@ -772,19 +772,22 @@ class _MiuixIosLiquidGlassNavigationBarState
       ],
     );
 
-    // The outer liquid surface uses the source 4dp blur plus a 24dp rounded-
-    // rectangle lens. The shader state gracefully falls back to blur on Skia
-    // or a host that cannot compile runtime image filters. Impeller now
-    // re-rasterizes transformed filter inputs before binding them, so Android
-    // uses the same physical-pixel lens path as the other Impeller targets.
+    // AndroidLiquidGlass builds its bottom-tab material as vibrancy, 8dp blur,
+    // then a 24/24dp rounded-rectangle lens. Keep that optical order while the
+    // existing HyperOS geometry, selection and gesture state remain unchanged.
+    // The shader state gracefully falls back to blur on Skia or a host that
+    // cannot compile runtime image filters. Impeller now re-rasterizes
+    // transformed filter inputs before binding them, so Android uses the same
+    // physical-pixel lens path as the other Impeller targets.
     if (glassEnabled) {
       background = _MiuixLiquidLensBackdrop(
         key: const ValueKey('ios-liquid-backdrop-filter'),
         radius: _panelHeight / 2,
-        blurSigma: intensity.resolveBlur(4),
+        blurSigma: intensity.resolveBlur(8),
         refractionHeight: 24,
         refractionAmount: 24,
         samplePadding: 40,
+        vibrancy: 1.5,
         child: background,
       );
     }
@@ -1279,6 +1282,7 @@ class _MiuixLiquidLensBackdrop extends StatefulWidget {
     this.samplePadding,
     this.depthEffect = false,
     this.chromaticAberration = 0,
+    this.vibrancy = 1,
   });
 
   final double radius;
@@ -1288,6 +1292,7 @@ class _MiuixLiquidLensBackdrop extends StatefulWidget {
   final double? samplePadding;
   final bool depthEffect;
   final double chromaticAberration;
+  final double vibrancy;
   final Widget child;
 
   @override
@@ -1375,7 +1380,8 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
       // Lens.kt passes the physical refraction amount with a negative sign.
       ..setFloat(11, -widget.refractionAmount * scale)
       ..setFloat(12, widget.depthEffect ? 1 : 0)
-      ..setFloat(13, widget.chromaticAberration);
+      ..setFloat(13, widget.chromaticAberration)
+      ..setFloat(14, widget.vibrancy);
     final lens = ui.ImageFilter.shader(shader);
     if (widget.blurSigma <= 0) return lens;
     // Upstream performs vibrancy, blur, then lens. Compose's ImageFilter order

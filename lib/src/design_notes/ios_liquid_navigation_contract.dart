@@ -202,7 +202,7 @@
 // The blurred panel uses surfaceContainer at 40 percent opacity.
 // The source samples content behind the panel.
 // Flutter performs that sampling with BackdropFilter.
-// The blur sigma is 4 on both axes.
+// The outer blur base sigma is 8 on both axes before intensity scaling.
 // The filter is clipped to the 32dp panel pill.
 // A rounded-rectangle runtime shader reproduces the source 24dp lens height.
 // The same shader reproduces the source negative 24dp refraction amount.
@@ -226,7 +226,7 @@
 // Its shader receives the equivalent 96 physical pixels exactly once.
 // Press-scale reach remains 16 logical dp on every device density.
 // Release screenshots compare the visible clip, not the hidden capture layer.
-// The lens filter is composed outside the 4dp blur filter.
+// The lens filter is composed outside the 8dp blur filter.
 // Unsupported shader-image-filter hosts retain a blur-only fallback.
 // The source BloomStroke uses a one-dp outer width and two light sources.
 // Its stroke color is white at 12 percent alpha.
@@ -264,6 +264,11 @@
 
 // Runtime lens pipeline
 // ---------------------
+// The optical material follows AndroidLiquidGlass commit 65ab177.
+// Its bottom-tab backdrop applies 1.5x vibrancy, then 8dp blur, then lens.
+// Vibrancy uses the same Rec. 709 coefficients .213, .715, and .072.
+// The Flutter shader performs that linear color transform at sample time.
+// The outer rounded-rectangle lens remains 24dp high with 24dp displacement.
 // miuix_liquid_lens.frag is a Flutter ImageFilter runtime-effect asset.
 // The shader declares u_size before every caller-controlled float.
 // Flutter owns u_size float slots zero and one for shader image filters.
@@ -275,6 +280,7 @@
 // Signed refraction amount occupies float slot eleven.
 // Depth-effect enablement occupies float slot twelve.
 // Chromatic-aberration strength occupies float slot thirteen.
+// Vibrancy saturation occupies float slot fourteen.
 // Every geometric uniform converts from logical dp to physical pixels.
 // That matches the physical bound-texture size supplied in u_size.
 // The input sampler remains the final runtime-effect uniform.
@@ -301,11 +307,12 @@
 // Channel and alpha divisors remain identical to Lens.kt.
 // The outer panel composes lens outside blur rather than blurring refracted output.
 // Flutter cannot sample Compose's combined panel backdrop, so the indicator
-// repeats the panel's 4dp authored blur before optional refraction.
-// Android disables ImageFilter.shader refraction after device evidence showed
-// padded-texture coordinate corruption and oversized rainbow sampling.
-// Android retains real backdrop blur, tint, edge highlight, and inner shadow.
-// Desktop Impeller backends may retain the runtime refraction shader.
+// retains its separately tuned 4dp source-compatibility blur before refraction.
+// Default HyperOS geometry never inserts that second indicator filter.
+// Android and other shader-filter-capable Impeller targets share one shader path.
+// Skia or shader compilation failure retains the blur-only fallback.
+// Vibrancy mixes sampled RGB away from Rec. 709 luminance by a factor of 1.5.
+// Its output is clamped to alpha so the runtime filter remains premultiplied.
 // Each widget instance owns a mutable FragmentShader.
 // FragmentShader instances are disposed with their owning State.
 // The asynchronously compiled FragmentProgram may be shared by engine caches.
