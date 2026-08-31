@@ -251,7 +251,7 @@ class _ReferenceFloatingToolbarAnimatedContentState
     // Incoming content is last, matching AnimatedContent's equal-z-order rule.
     return _ReferenceAnimatedContentSize(
       progress: _size,
-      children: <Widget>[if (previous != null) previous, current],
+      children: <Widget>[?previous, current],
     );
   }
 }

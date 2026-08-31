@@ -1,5 +1,37 @@
 # Android 集成说明
 
+## Release 签名
+
+仓库的完整 Release 周期有意生成使用本地 Android Debug 证书的测试分发 APK。
+PowerShell 构建脚本会显式启用该回退；直接执行 Gradle 或 Flutter Release 构建则默认
+关闭签名回退并立即失败。
+
+生产签名需要设置以下四个进程环境变量，然后运行：
+
+```powershell
+$env:MIUIX_RELEASE_KEYSTORE = 'C:\secure\miuix-release.jks'
+$env:MIUIX_RELEASE_STORE_PASSWORD = '<store password>'
+$env:MIUIX_RELEASE_KEY_ALIAS = '<alias>'
+$env:MIUIX_RELEASE_KEY_PASSWORD = '<key password>'
+.\tool\build_android_arm64_release.ps1 -ProductionSigning `
+  -ExpectedCertificateSha256 '<certificate SHA-256>'
+```
+
+脚本不会把这些值写入仓库；配置不完整、keystore 不存在、最终签名仍为 Debug，或证书
+摘要与可选固定值不一致时都会失败。
+
+## 真机帧时序门禁
+
+连接已安装示例应用的 ARM64 真机后，可运行：
+
+```powershell
+.\tool\verify_android_frame_timing.ps1 -DeviceId '<adb serial>'
+```
+
+脚本会重置 `gfxinfo`、启动应用、重复切换底部 Tab，再校验有效帧数、卡顿帧比例和
+95 分位帧耗时，并把原始证据保存在 `artifacts/parity/performance_*`。默认拒绝 x86、
+非 ARM64 和模拟器；`-AllowArm64EmulatorDiagnostic` 只用于诊断，不代表真机验收。
+
 ## 系统返回手势
 
 `flutter_miuix` 的叠加对话框、底部弹层和下拉菜单使用 Flutter

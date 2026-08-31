@@ -170,7 +170,7 @@ class MiuixFloatingActionButton extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (icon != null) icon!,
+                    ?icon,
                     if (icon != null) const SizedBox(width: 10),
                     Text(
                       label!,

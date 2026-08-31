@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.1
+
+- 恢复仓库 Git 基线并刷新本地 MIUIX 上游快照至 `7cc339c`。上游新增的九个提交只修改
+  CI 工作流、Gradle 依赖目录和 Wrapper，没有新的组件公共 API；本轮不虚增来源映射。
+- 恢复 Android Impeller 的液态镜片折射路径：移除过时的平台硬禁用，统一使用引擎已
+  重栅格化的物理像素滤镜输入；仅在非 Impeller 或 shader 编译失败时降级为普通模糊。
+  新增契约回归，锁定 Android 不再被排除、DPR 缩放和 GLES 纹理方向处理。
+- 统一 Dart 包、Android 库、示例和 Release 脚本版本为 1.2.1，移除无效的本地 GitHub
+  主页；升级 lint 依赖。`desktop_drop` 0.8.3 在 Flutter 3.44.1 关闭 AGP 9 内建 Kotlin
+  时仍无法配置 Android 工程，因此继续锁定 0.7.1；`libmonet` 1.2.0 需要
+  `meta ^1.18.1`，但 Flutter 3.44.1 的测试 SDK 固定为 1.18.0，因此保留 1.1.2 并记录
+  解除条件，不用 dependency override 制造不可复现的伪升级。
+- Android Release 签名改为显式策略：本地测试分发必须由构建脚本声明 Debug 证书回退；
+  生产构建必须提供 keystore、alias 和密码，缺失时立即失败，不再静默把 Debug 证书
+  当成生产 Release。
+- 新增受限于 `build` 直接子目录、默认只预览的验证缓存清理工具，并把成功 Release 后
+  的保留策略接入完整周期；新增 Android 帧时序采集门禁，真机缺失时明确失败而不以
+  Widget 测试或 x86 模拟器数据冒充设备性能。
+
 ## 1.2.0
 
 - 修复默认 HyperOS 液态底部 Tab 选中时模糊观感与尺寸发生变化：点击和切换期间不再

@@ -1,7 +1,6 @@
 name: flutter_miuix
 description: A localized, cross-platform Flutter implementation of MIUIX components for Android and Windows.
-version: 1.2.0
-homepage: https://github.com/local/flutter_miuix
+version: 1.2.1
 publish_to: none
 
 environment:
@@ -9,16 +8,17 @@ environment:
   flutter: ">=3.38.0"
 
 dependencies:
-  # 0.8.x assumes AGP 9 built-in Kotlin, which Flutter 3.44 still disables.
+  # 0.8.3 still fails when Flutter 3.44.1 disables AGP 9 built-in Kotlin.
   desktop_drop: ">=0.7.1 <0.8.0"
   flutter:
     sdk: flutter
-  libmonet: ^1.1.2
+  # 1.2.0 requires meta ^1.18.1, while Flutter 3.44.1 pins meta 1.18.0.
+  libmonet: 1.1.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true

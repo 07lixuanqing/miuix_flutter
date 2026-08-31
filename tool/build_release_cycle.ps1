@@ -1,6 +1,7 @@
 param(
-  [string]$Version = "1.2.0",
-  [ValidateRange(1, 20)][int]$Keep = 3
+  [string]$Version = "1.2.1",
+  [ValidateRange(1, 20)][int]$Keep = 3,
+  [ValidateRange(0, 20)][int]$BuildCacheKeep = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -206,5 +207,8 @@ $releaseManifest = @(
 # Retention is deliberately last: a failure above keeps all previously known
 # good checkpoints. Only a fully assembled cycle is allowed to prune history.
 & (Join-Path $PSScriptRoot "prune_release_checkpoints.ps1") -Keep $Keep
+& (Join-Path $PSScriptRoot "prune_build_verification_cache.ps1") `
+  -Keep $BuildCacheKeep `
+  -Apply
 
 Write-Host "Completed Release cycle $Version+$buildNumber."

@@ -11,6 +11,9 @@ analyzer:
 
 linter:
   rules:
+    # Named libraries keep the large set of `part of miuix_flutter` contract
+    # files stable; migrating every part to URI form would add no safety.
+    unnecessary_library_name: false
     prefer_const_constructors: true
     prefer_const_literals_to_create_immutables: true
     sort_child_properties_last: true

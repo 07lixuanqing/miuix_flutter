@@ -45,8 +45,8 @@ class MiuixCommand {
   /// Lowercase corpus used by the default matcher.
   String get searchableText => <String>[
     title,
-    if (subtitle != null) subtitle!,
-    if (category != null) category!,
+    ?subtitle,
+    ?category,
     ...keywords,
   ].join(' ').toLowerCase();
 }

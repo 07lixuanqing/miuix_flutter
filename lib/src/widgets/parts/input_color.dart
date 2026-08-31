@@ -607,7 +607,7 @@ class _MiuixTextFieldState extends State<MiuixTextField>
           padding: usesSourceSlots ? EdgeInsets.zero : insideMargin,
           child: Row(
             children: [
-              if (sourceLeading != null) sourceLeading,
+              ?sourceLeading,
               if (!usesSourceSlots && widget.prefixIcon != null) ...[
                 IconTheme(
                   data: IconThemeData(
@@ -756,7 +756,7 @@ class _MiuixTextFieldState extends State<MiuixTextField>
                   child: widget.suffixIcon!,
                 ),
               ],
-              if (sourceTrailing != null) sourceTrailing,
+              ?sourceTrailing,
             ],
           ),
         ),

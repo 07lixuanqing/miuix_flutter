@@ -516,7 +516,7 @@ class MiuixCheckboxPreference extends StatelessWidget {
                   padding: const EdgeInsetsDirectional.only(end: 5),
                   child: checkbox,
                 ),
-                if (leading != null) leading!,
+                ?leading,
               ],
             )
           : leading,

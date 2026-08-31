@@ -8757,7 +8757,7 @@ void _registerCoreWidgetTests() {
                     controller: controller,
                     itemExtent: 100,
                     itemCount: 20,
-                    itemBuilder: (_, __) =>
+                    itemBuilder: (_, _) =>
                         const ColoredBox(color: Colors.white),
                   ),
                 ),

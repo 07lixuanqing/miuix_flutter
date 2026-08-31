@@ -6,7 +6,7 @@ publish_to: none
 # supplies a monotonic time-based build number and verifies the final package.
 # The release script refreshes this fallback to the final split APK code so a
 # later direct Flutter build can still replace the most recent test release.
-version: 1.2.0+30572000
+version: 1.2.1+30576000
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -19,12 +19,13 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_miuix:
     path: ..
+  # Keep aligned with the package until Flutter lifts its meta 1.18.0 pin.
   libmonet: 1.1.2
   url_launcher: ^6.3.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true

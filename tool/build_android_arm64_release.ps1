@@ -4,7 +4,11 @@ param(
     # Install the finished APK on a connected device without removing app data.
     [switch]$Install,
     # Optional adb serial when more than one Android target is connected.
-    [string]$DeviceId = ""
+    [string]$DeviceId = "",
+    # Require a caller-owned production keystore instead of the test certificate.
+    [switch]$ProductionSigning,
+    # Optional certificate pin for production builds (hex SHA-256, separators allowed).
+    [string]$ExpectedCertificateSha256 = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,6 +89,50 @@ if (-not (Test-Path -LiteralPath $flutter)) {
     $flutter = "flutter"
 }
 
+$signingNames = @(
+    "MIUIX_RELEASE_KEYSTORE",
+    "MIUIX_RELEASE_STORE_PASSWORD",
+    "MIUIX_RELEASE_KEY_ALIAS",
+    "MIUIX_RELEASE_KEY_PASSWORD",
+    "MIUIX_ALLOW_TEST_SIGNING"
+)
+$previousSigningEnvironment = @{}
+foreach ($name in $signingNames) {
+    $previousSigningEnvironment[$name] = [Environment]::GetEnvironmentVariable(
+        $name,
+        [EnvironmentVariableTarget]::Process
+    )
+}
+if ($ProductionSigning) {
+    foreach ($requiredName in $signingNames[0..3]) {
+        if ([string]::IsNullOrWhiteSpace($previousSigningEnvironment[$requiredName])) {
+            throw "Production signing requires environment variable $requiredName."
+        }
+    }
+    [Environment]::SetEnvironmentVariable(
+        "MIUIX_ALLOW_TEST_SIGNING",
+        $null,
+        [EnvironmentVariableTarget]::Process
+    )
+}
+else {
+    # A normal repository cycle is explicitly test-signed. Temporarily hide any
+    # production secrets from Gradle so an unattended local build cannot consume
+    # a real signing key by accident.
+    foreach ($productionName in $signingNames[0..3]) {
+        [Environment]::SetEnvironmentVariable(
+            $productionName,
+            $null,
+            [EnvironmentVariableTarget]::Process
+        )
+    }
+    [Environment]::SetEnvironmentVariable(
+        "MIUIX_ALLOW_TEST_SIGNING",
+        "true",
+        [EnvironmentVariableTarget]::Process
+    )
+}
+
 Push-Location $example
 try {
     & $flutter build apk `
@@ -98,6 +146,13 @@ try {
 }
 finally {
     Pop-Location
+    foreach ($name in $signingNames) {
+        [Environment]::SetEnvironmentVariable(
+            $name,
+            $previousSigningEnvironment[$name],
+            [EnvironmentVariableTarget]::Process
+        )
+    }
 }
 
 if (-not (Test-Path -LiteralPath $sourceApk)) {
@@ -138,9 +193,32 @@ if ($badging -notmatch "versionCode='(\d+)'") {
     throw "The final Android versionCode could not be read: $badging"
 }
 $finalVersionCode = [int]$Matches[1]
-& $apksigner verify --verbose --print-certs $releaseApk
+$signatureOutput = @(& $apksigner verify --verbose --print-certs $releaseApk 2>&1)
+$signatureOutput | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) {
     throw "APK signature verification failed: $releaseApk"
+}
+$signatureText = $signatureOutput -join "`n"
+$debugCertificate = $signatureText -match "CN=Android Debug"
+if ($ProductionSigning -and $debugCertificate) {
+    throw "Production signing requested, but the APK uses the Android Debug certificate."
+}
+if (-not $ProductionSigning -and -not $debugCertificate) {
+    throw "Test signing requested, but the APK does not use the Android Debug certificate."
+}
+if ($ProductionSigning -and -not [string]::IsNullOrWhiteSpace($ExpectedCertificateSha256)) {
+    $expectedDigest = ($ExpectedCertificateSha256 -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
+    $digestMatch = [regex]::Match(
+        $signatureText,
+        "(?im)^(?:Signer #\d+|V2 Signer):?\s*certificate SHA-256 digest:\s*([0-9a-f]+)\s*$"
+    )
+    if (-not $digestMatch.Success) {
+        throw "The production signing certificate SHA-256 could not be read."
+    }
+    $actualDigest = $digestMatch.Groups[1].Value.ToUpperInvariant()
+    if ($actualDigest -ne $expectedDigest) {
+        throw "Production signing certificate SHA-256 does not match the expected pin."
+    }
 }
 
 # Keep the stable artifact and its checksum inseparable. A stale sidecar makes

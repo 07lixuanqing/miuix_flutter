@@ -252,10 +252,7 @@ class MiuixEmptyStateView extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
-                children: <Widget>[
-                  if (secondaryAction != null) secondaryAction!,
-                  if (primaryAction != null) primaryAction!,
-                ],
+                children: <Widget>[?secondaryAction, ?primaryAction],
               ),
             ],
           ],

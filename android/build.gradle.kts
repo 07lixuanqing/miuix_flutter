@@ -1,5 +1,5 @@
 group = "com.xinxin.flutter_miuix"
-version = "1.0.9"
+version = "1.2.1"
 
 buildscript {
     val kotlinVersion = "2.3.20"

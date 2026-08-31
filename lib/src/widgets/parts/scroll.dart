@@ -942,9 +942,7 @@ class _MiuixScrollBarState extends State<MiuixScrollBar>
                 ),
               // Pattern matching avoids inserting an empty hit-test layer when
               // this scrollbar is display-only or has no scrollable extent.
-              if (_buildDragTarget(context, constraints, padding)
-                  case final target?)
-                target,
+              ?_buildDragTarget(context, constraints, padding),
             ],
           );
         },

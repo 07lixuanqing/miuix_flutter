@@ -766,7 +766,9 @@ class _MiuixIosLiquidGlassNavigationBarState
 
     // The outer liquid surface uses the source 4dp blur plus a 24dp rounded-
     // rectangle lens. The shader state gracefully falls back to blur on Skia
-    // or a host that cannot compile runtime image filters.
+    // or a host that cannot compile runtime image filters. Impeller now
+    // re-rasterizes transformed filter inputs before binding them, so Android
+    // uses the same physical-pixel lens path as the other Impeller targets.
     if (glassEnabled) {
       background = _MiuixLiquidLensBackdrop(
         key: const ValueKey('ios-liquid-backdrop-filter'),
@@ -1003,8 +1005,6 @@ class _MiuixIosLiquidGlassNavigationBarState
     final sourceOptics =
         widget.geometry == MiuixIosLiquidNavigationGeometry.source;
     final isDark = scheme.brightness == Brightness.dark;
-    final androidSafeGlass =
-        glassEnabled && defaultTargetPlatform == TargetPlatform.android;
     final intensity = MiuixTheme.of(context).glassIntensity;
     // Surface intensity controls how much page content is visible through the
     // complete panel, but it must not erase destination identity. HyperOS 4
@@ -1012,12 +1012,9 @@ class _MiuixIosLiquidGlassNavigationBarState
     // stronger over dark glass and quieter over light glass. These are visual
     // calibration values, not published Xiaomi tokens.
     final restingAlpha = sourceOptics
-        ? (androidSafeGlass ? .10 : intensity.resolveOpacity(.10))
+        ? intensity.resolveOpacity(.10)
         : (isDark ? .14 : .08);
     final restingColor = (isDark ? Colors.white : Colors.black).withValues(
-      // Android intentionally omits the unstable refraction shader. Retain
-      // the source 10% selection tint there so the fixed lens remains visible
-      // even at the most transparent global glass level.
       alpha: restingAlpha,
     );
     final pressedColor = Colors.black.withValues(
@@ -1302,9 +1299,6 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
 
   Future<void> _loadShader() async {
     if (_loading || _shader != null) return;
-    // Do not compile an unused runtime effect on Android. Device evidence has
-    // selected the deterministic backdrop-blur fallback for this backend.
-    if (defaultTargetPlatform == TargetPlatform.android) return;
     _loading = true;
     ui.FragmentProgram? program;
     try {
@@ -1341,17 +1335,12 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
     required double devicePixelRatio,
   }) {
     final shader = _shader;
-    // Android's Impeller image-filter input can use a device-dependent padded
-    // texture transform. The current custom lens assumes a one-to-one local
-    // texture origin; on affected Vulkan/GLES devices that mismatch produces
-    // the oversized rainbow sampling seen in real screenshots. Until Flutter
-    // exposes the filter-input transform, Android deliberately uses the stable
-    // backdrop blur path. It retains translucency and highlight layers without
-    // presenting GPU corruption as chromatic dispersion.
-    final stableShaderBackend = defaultTargetPlatform != TargetPlatform.android;
-    if (shader == null ||
-        !ui.ImageFilter.isShaderFilterSupported ||
-        !stableShaderBackend) {
+    // Flutter's Impeller runtime-effect filter absorbs a non-identity input
+    // snapshot transform into a fresh texture before invoking this shader.
+    // That makes FlutterFragCoord, u_size and the physical geometry uniforms
+    // share one origin on Android/Vulkan, Android/GLES and desktop backends.
+    // Skia and failed shader compilation retain the deterministic blur path.
+    if (shader == null || !ui.ImageFilter.isShaderFilterSupported) {
       return ui.ImageFilter.blur(
         sigmaX: widget.blurSigma,
         sigmaY: widget.blurSigma,

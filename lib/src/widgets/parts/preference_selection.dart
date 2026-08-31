@@ -235,7 +235,7 @@ class MiuixSliderPreference extends StatelessWidget {
       bottomAction: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (bottomAction != null) bottomAction!,
+          ?bottomAction,
           MiuixSlider(
             value: safeValue,
             min: range.min,
@@ -817,7 +817,7 @@ class MiuixRangeSliderPreference extends StatelessWidget {
       bottomAction: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (bottomAction != null) bottomAction!,
+          ?bottomAction,
           MiuixRangeSlider(
             values: safeValues,
             min: range.min,

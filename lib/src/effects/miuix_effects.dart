@@ -1145,7 +1145,7 @@ class MiuixProgressiveLayerBackdrop extends StatelessWidget {
             key: const ValueKey('miuix-progressive-blur-level-100'),
           ),
         ),
-        if (postEffectLayer != null) postEffectLayer,
+        ?postEffectLayer,
         child,
       ],
     );
@@ -1291,7 +1291,7 @@ class _MiuixProgressiveRuntimeBackdropState
             child: const SizedBox.expand(),
           ),
         ),
-        if (widget.postEffectLayer case final postEffect?) postEffect,
+        ?widget.postEffectLayer,
         widget.child,
       ],
     );

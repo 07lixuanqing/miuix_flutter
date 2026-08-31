@@ -2250,11 +2250,7 @@ class _MiuixBottomSheetPredictiveTransform extends StatelessWidget {
     final keyedChild = KeyedSubtree(key: surfaceKey, child: child);
     final progress = controller;
     final visibility = visibilityAnimation;
-    final listenables = <Listenable>[
-      if (progress != null) progress,
-      if (visibility != null) visibility,
-      dragMotion,
-    ];
+    final listenables = <Listenable>[?progress, ?visibility, dragMotion];
     return AnimatedBuilder(
       animation: Listenable.merge(listenables),
       child: keyedChild,
