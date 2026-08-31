@@ -13,12 +13,11 @@ void main() {
       contains('defaultTargetPlatform == TargetPlatform.android) return'),
     );
     expect(source, contains('defaultTargetPlatform != TargetPlatform.android'));
-    expect(source, contains("ValueKey('ios-liquid-safe-vibrancy')"));
-    expect(source, contains('ColorFiltered('));
+    expect(source, contains("ValueKey('ios-liquid-stable-backdrop')"));
+    expect(source, isNot(contains("ValueKey('ios-liquid-safe-vibrancy')")));
+    expect(source, isNot(contains('ColorFiltered(')));
     expect(source, contains('final padding = useRuntimeLens'));
-    expect(source, contains('const red = .213;'));
-    expect(source, contains('const green = .715;'));
-    expect(source, contains('const blue = .072;'));
+    expect(source, contains('blendMode: BlendMode.srcOver'));
   });
 
   test('liquid lens geometry and sampling use the physical texture domain', () {

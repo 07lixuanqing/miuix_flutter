@@ -1055,3 +1055,22 @@ x86_64 模拟器不作为 arm64 流畅度或视觉一致性证据。
   但不替代 arm64 真机 GPU 验证。
 
 完整分析、全量测试、双平台 Release、库包、签名/架构与 SHA-256 由本批发布周期统一验证。
+
+## 2026-08-31 第五十七批结果
+
+- 后续 arm64 真机反馈显示第五十六批虽然移除了上下分区，但整个底栏又失去可见模糊。重新检查
+  RenderObject 合成顺序后确认，问题是把 `ColorFiltered` 包在 `BackdropFilter` 外侧：它会先建立
+  一个透明离屏层，部分 Android Impeller 设备随后无法从真实页面背板取样；Widget 测试后端仍能
+  合成该结构，因此此前 Golden 与像素断言没有暴露问题。
+- Android 与 shader 不可用的稳定分支改成 Flutter 推荐的直接合成顺序：`BackdropFilter` 直接
+  读取已经绘制的页面，40% 语义表面色作为它的 child 随后绘制。该路径不再使用外层
+  `ColorFiltered`、runtime lens、扩展采样或第二个 BackdropFilter，因而同时保留完整 56dp 的可见
+  模糊和上下统一性；桌面端支持的 lens shader 仍保留 1.5 倍 vibrancy 与折射。
+- Android 专用回归现在同时检查直接 BackdropFilter、`srcOver`、表面色层级、精确胶囊 Rect 和
+  高频条纹边缘对比；胶囊外条纹保持锐利，胶囊内每个采样行都必须明显软化，且上下模糊强度差
+  小于 0.1。
+- 在本任务 API 35 x86_64 OpenGLES Impeller 模拟器重新安装调试包，首页与设置页均能看到背景
+  文字进入底栏后边缘软化，完整胶囊保持连续玻璃着色；日志无 Flutter Error、Fatal 或 ANR。
+  该运行证据验证 Android 稳定合成分支，但最终 arm64 GPU 表现仍以用户真机安装新版 APK 为准。
+
+完整分析、全量测试、双平台 Release、库包、签名/架构与 SHA-256 由本批发布周期统一验证。

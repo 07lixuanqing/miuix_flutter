@@ -13,8 +13,9 @@
 // Every destination keeps the same horizontal allocation in every locale.
 // Optical and motion behavior begins with the current upstream liquid example.
 // Runtime screenshots additionally govern platform-specific safety revisions.
-// The panel uses 40 percent tint, 8dp blur, and 1.5x vibrancy.
-// Stable desktop backends additionally retain 24dp lens refraction.
+// The panel uses 40 percent tint and 8dp blur.
+// Stable desktop lens backends additionally use 1.5x vibrancy and 24dp lens
+// refraction. Android prioritizes a directly composited, visible engine blur.
 // Its BloomStroke highlight follows a quantized device-gravity direction.
 // The selected destination owns a fixed 56dp circular liquid lens.
 // That lens grows from zero to 10dp depth and 14dp refraction while pressed.
@@ -208,7 +209,9 @@
 // Stable desktop shader-filter backends reproduce the 24dp lens height.
 // The same desktop shader uses the source negative 24dp refraction amount.
 // Android deliberately uses one exact-bounds engine blur plane instead.
-// Android applies equivalent 1.5x vibrancy with Flutter ColorFiltered.
+// Android does not wrap BackdropFilter in ColorFiltered because that creates
+// an empty offscreen backdrop on affected Impeller devices.
+// It uses direct engine blur followed by the same semantic surface tint.
 // Android never binds the device-dependent ImageFilter.shader input texture.
 // The final capsule ClipRRect still owns the complete visible boundary.
 // Sampling padding must never contribute layout width or layout height.
@@ -225,7 +228,7 @@
 // Press-scale reach remains 16 logical dp on every device density.
 // The main panel does not expand its backdrop beyond the bottom window edge.
 // The lens filter is composed outside the 8dp blur filter.
-// Unsupported shader-image-filter hosts retain blur plus vibrancy fallback.
+// Unsupported shader-image-filter hosts retain direct backdrop blur and tint.
 // The source BloomStroke uses a one-dp outer width and two light sources.
 // Its stroke color is white at 12 percent alpha.
 // Its inner blur radius is 2dp.
@@ -309,7 +312,7 @@
 // retains its separately tuned 4dp source-compatibility blur before refraction.
 // Default HyperOS geometry never inserts that second indicator filter.
 // Android never loads the runtime lens after repeated real-device split input.
-// It uses exact-bounds ImageFilter.blur plus ColorFiltered vibrancy instead.
+// It uses exact-bounds ImageFilter.blur with tint inside BackdropFilter.
 // Skia or shader compilation failure retains that same stable material path.
 // Vibrancy mixes sampled RGB away from Rec. 709 luminance by a factor of 1.5.
 // Its output is clamped to alpha so the runtime filter remains premultiplied.

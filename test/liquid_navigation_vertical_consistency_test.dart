@@ -25,8 +25,20 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(
-        find.byKey(const ValueKey('ios-liquid-safe-vibrancy')),
+        find.byKey(const ValueKey('ios-liquid-stable-backdrop')),
         findsOneWidget,
+      );
+      final stableBackdrop = tester.widget<BackdropFilter>(
+        find.byKey(const ValueKey('ios-liquid-stable-backdrop')),
+      );
+      expect(stableBackdrop.blendMode, BlendMode.srcOver);
+      expect(
+        find.ancestor(
+          of: find.byKey(const ValueKey('ios-liquid-surface')),
+          matching: find.byKey(const ValueKey('ios-liquid-stable-backdrop')),
+        ),
+        findsOneWidget,
+        reason: 'the surface tint must be painted inside the backdrop layer',
       );
       final panelRect = tester.getRect(
         find.byKey(const ValueKey('ios-liquid-panel')),

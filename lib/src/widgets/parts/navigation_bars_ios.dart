@@ -1317,7 +1317,7 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
     // Android Impeller still exposes device-dependent backdrop-input origins
     // for ImageFilter.shader. Real arm64 screenshots have shown a horizontal
     // split where one half samples a different texture region. Keep Android on
-    // the stable engine blur + ColorFiltered vibrancy path below.
+    // the stable engine BackdropFilter path below.
     if (defaultTargetPlatform == TargetPlatform.android) return;
     _loading = true;
     ui.FragmentProgram? program;
@@ -1353,36 +1353,6 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
       defaultTargetPlatform != TargetPlatform.android &&
       _shader != null &&
       ui.ImageFilter.isShaderFilterSupported;
-
-  ColorFilter _vibrancyFilter() {
-    final saturation = widget.vibrancy;
-    final inverse = 1 - saturation;
-    const red = .213;
-    const green = .715;
-    const blue = .072;
-    return ColorFilter.matrix(<double>[
-      red * inverse + saturation,
-      green * inverse,
-      blue * inverse,
-      0,
-      0,
-      red * inverse,
-      green * inverse + saturation,
-      blue * inverse,
-      0,
-      0,
-      red * inverse,
-      green * inverse,
-      blue * inverse + saturation,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-    ]);
-  }
 
   ui.ImageFilter _filter({
     required Size shapeSize,
@@ -1454,26 +1424,17 @@ class _MiuixLiquidLensBackdropState extends State<_MiuixLiquidLensBackdrop> {
           devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
         );
         if (padding <= 0) {
-          if (!useRuntimeLens && (widget.vibrancy - 1).abs() > .001) {
-            // ColorFiltered operates on the filtered backdrop only; paint the
-            // semantic surface tint afterwards so its authored alpha and theme
-            // color are not saturated a second time.
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                ColorFiltered(
-                  key: const ValueKey('ios-liquid-safe-vibrancy'),
-                  colorFilter: _vibrancyFilter(),
-                  child: BackdropFilter(
-                    filter: filter,
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-                widget.child,
-              ],
-            );
-          }
-          return BackdropFilter(filter: filter, child: widget.child);
+          // Keep the blur directly attached to the already-painted page and
+          // draw the translucent surface as its child. Wrapping BackdropFilter
+          // in ColorFiltered creates an offscreen transparent layer on some
+          // Android Impeller devices, leaving nothing for the blur to sample.
+          // This canonical ordering keeps one visible, exact-bounds blur plane.
+          return BackdropFilter(
+            key: const ValueKey('ios-liquid-stable-backdrop'),
+            filter: filter,
+            blendMode: BlendMode.srcOver,
+            child: widget.child,
+          );
         }
         // Capture an expanded transparent layer, then paint the actual surface
         // over it. The surrounding ClipRRect restricts output to the pill, but
