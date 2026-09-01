@@ -4814,7 +4814,7 @@ void _registerNavigationInputTests() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('top app bar defaults to persistent glass and shaped actions', (
+  testWidgets('top app bar defaults to gradient glass and circular actions', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -4830,7 +4830,7 @@ void _registerNavigationInputTests() {
             appBar: MiuixTopAppBar(
               title: 'Browse',
               large: false,
-              actions: [Icon(Icons.more_vert)],
+              actions: [Icon(Icons.search), Icon(Icons.more_vert)],
             ),
           ),
         ),
@@ -4839,14 +4839,26 @@ void _registerNavigationInputTests() {
     await tester.pumpAndSettle();
 
     final bar = tester.widget<MiuixTopAppBar>(find.byType(MiuixTopAppBar));
-    expect(bar.blurStyle, MiuixTopAppBarBlurStyle.gaussian);
+    expect(bar.blurStyle, MiuixTopAppBarBlurStyle.gradient);
     expect(bar.actionStyle, MiuixTopAppBarActionStyle.glass);
-    expect(find.byKey(const ValueKey('top-app-bar-glass')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('top-app-bar-progressive-glass')),
+      findsOneWidget,
+    );
+    expect(find.byType(ShaderMask), findsNothing);
     final actionGroup = find.byKey(const ValueKey('top-app-bar-glass-actions'));
-    expect(tester.getSize(actionGroup), const Size(48, 48));
+    expect(tester.getSize(actionGroup), const Size(104, 48));
+    final actionGlass = find.descendant(
+      of: actionGroup,
+      matching: find.byType(MiuixGlass),
+    );
+    expect(actionGlass, findsNWidgets(2));
+    for (final glass in tester.widgetList<MiuixGlass>(actionGlass)) {
+      expect(glass.shape, isA<CircleBorder>());
+    }
     expect(
       find.descendant(of: actionGroup, matching: find.byType(BackdropFilter)),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(tester.takeException(), isNull);
   });

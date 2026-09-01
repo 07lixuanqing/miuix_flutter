@@ -97,6 +97,7 @@ class DemoApp extends StatelessWidget {
 - [Windows 集成说明](doc/WINDOWS.md)
 - [常用组件示例](doc/COMPONENTS_ZH.md)
 - [扩展组件指南](doc/EXTENSIONS_ZH.md)
+- [当前界面实现与控件使用指南](doc/CURRENT_UI_IMPLEMENTATION_AND_USAGE_ZH.md)
 - [HyperOS 4 官方软件风格实施规范](doc/HYPEROS4_OFFICIAL_APP_DESIGN_SPEC_ZH.md)
 
 Flutter 组件库不会以独立 `.aar` 或 `.dll` 的方式包含 Dart 界面代码。正确的分发物是本源码包：消费应用构建时，Flutter 会把组件代码、字体和着色器编译进 Android APK/AAB 或 Windows EXE。Android 目录中的原生插件会自动参与 Android 构建。

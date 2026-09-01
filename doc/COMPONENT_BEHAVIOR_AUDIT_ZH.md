@@ -1074,3 +1074,28 @@ x86_64 模拟器不作为 arm64 流畅度或视觉一致性证据。
   该运行证据验证 Android 稳定合成分支，但最终 arm64 GPU 表现仍以用户真机安装新版 APK 为准。
 
 完整分析、全量测试、双平台 Release、库包、签名/架构与 SHA-256 由本批发布周期统一验证。
+
+## 2026-09-01 第五十八批结果
+
+- 顶部标题区域新增默认 `MiuixTopAppBarBlurStyle.gradient`。该路径只使用一个直接读取
+  页面背板的 `BackdropFilter`，其 child 绘制三段语义色纵向渐变；标题、返回按钮和操作按钮
+  位于独立前景层。滤镜外不再使用 `ShaderMask`、整层 `Opacity` 或横向切片，避免 Android
+  Impeller 丢失真实背景取样、标题区域完全透明或出现条带分界。
+- `gaussian` 继续提供显式均匀玻璃，`progressive` 继续提供随正文滚动渐显的兼容路径；新增枚举
+  值追加在现有值之后，避免改变旧值顺序。普通 `MiuixTopAppBar` 与
+  `MiuixSliverTopAppBar` 使用渐变玻璃作为新默认，`.source` Sliver 保留滚动渐显行为。
+- 小标题状态的玻璃操作区不再把多个 action 合成一个横向椭圆。每个 action 现在拥有独立的
+  48×48dp `MiuixGlass` 和 `CircleBorder`，相邻圆形间距 8dp；标题碰撞测量同步使用实际圆形组
+  宽度。显式 `plain` 模式继续保留原来的 40dp 图标中心节奏与 48dp 交互目标。
+- Android 平台专用材质回归断言顶栏不存在 `ShaderMask`、只有一个直接背景滤镜，并用高频彩条
+  Golden 验证标题区域每一行均发生软化、下边缘仍保留模糊且渐变连续。双 action 几何回归锁定
+  104×48dp 组宽、两个独立圆形玻璃和 8dp 间距；相关普通、Scaffold、Sliver 与示例 Golden
+  已更新并逐项复核。
+- 在本任务 API 35 x86_64 模拟器安装 Android x64 Debug APK，以 OpenGLES Impeller 打开示例首页；
+  运行截图可见顶部持续渐变玻璃和圆形操作按钮，日志没有 Flutter Error 或 Fatal。该证据验证
+  Android 稳定合成路径，不替代 arm64 真机 GPU 与触感验证。
+- 新增 `doc/CURRENT_UI_IMPLEMENTATION_AND_USAGE_ZH.md`，按当前 `lib/` 实现说明主题、Scaffold
+  层级、顶部标题、四类 Tab/导航、常用基础控件、设置与输入、弹层反馈、扩展控件、页面返回和
+  `.source` 兼容边界；同步修正旧接入文档中“默认均匀模糊、多个操作共用胶囊”的过时描述。
+
+完整分析、全量测试、双平台 Release、库包、签名/架构与 SHA-256 由本批发布周期统一验证。

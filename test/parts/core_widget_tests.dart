@@ -7266,7 +7266,7 @@ void _registerCoreWidgetTests() {
       );
 
       final surface = tester.getRect(
-        find.byKey(const ValueKey('top-app-bar-glass')),
+        find.byKey(const ValueKey('top-app-bar-progressive-glass')),
       );
       final title = tester.getRect(find.text('Wide title'));
       final leading = tester.getRect(
@@ -7300,7 +7300,7 @@ void _registerCoreWidgetTests() {
     expect(bar.preferredSize.height, 56);
   });
 
-  testWidgets('progressive top bar follows HyperOS 4 mask and scroll reveal', (
+  testWidgets('progressive top bar uses direct blur and scroll reveal', (
     tester,
   ) async {
     final behavior = MiuixTopAppBarScrollBehavior();
@@ -7322,23 +7322,12 @@ void _registerCoreWidgetTests() {
       ),
     );
 
-    final filter = find.byKey(const ValueKey('top-app-bar-progressive-filter'));
-    final opacity = find.byKey(
-      const ValueKey('top-app-bar-progressive-opacity'),
-    );
     expect(find.byKey(const ValueKey('top-app-bar-glass')), findsNothing);
+    expect(find.byType(ShaderMask), findsNothing);
     expect(
-      find.byKey(const ValueKey('top-app-bar-progressive-mask')),
-      findsOneWidget,
+      find.byKey(const ValueKey('top-app-bar-gradient-filter')),
+      findsNothing,
     );
-    expect(tester.widget<MiuixGlass>(filter).blur, 18);
-    expect(tester.widget<MiuixGlass>(filter).opacity, .24);
-    expect(tester.widget<MiuixGlass>(filter).showSpecular, isFalse);
-    expect(
-      tester.widget<MiuixGlass>(filter).optics,
-      same(MiuixGlassOptics.navigation),
-    );
-    expect(tester.widget<Opacity>(opacity).opacity, 0);
 
     // BlurredBar.kt derives alpha from -contentOffset / 48dp rather than from
     // title collapse alone. Retain the independent raw scroll distance.
@@ -7354,7 +7343,25 @@ void _registerCoreWidgetTests() {
     );
     await tester.pump();
     expect(behavior.contentOffset, -48);
-    expect(tester.widget<Opacity>(opacity).opacity, 1);
+    expect(
+      find.byKey(const ValueKey('top-app-bar-gradient-filter')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('top-app-bar-progressive-glass')),
+        matching: find.byType(BackdropFilter),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<BackdropFilter>(
+            find.byKey(const ValueKey('top-app-bar-gradient-filter')),
+          )
+          .blendMode,
+      BlendMode.srcOver,
+    );
     expect(tester.takeException(), isNull);
   });
 

@@ -296,7 +296,10 @@ library flutter_miuix_hyperos4_surface_contract;
 // Calendar panel must keep its public package behavior available to applications rather than only to the example.
 
 // Component-specific migration requirements.
-// The compact top app bar must default to progressive glass rather than a permanently opaque block.
+// The compact top app bar defaults to persistent gradient glass rather than a permanently opaque block.
+// Its direct BackdropFilter must not be wrapped by ShaderMask or Opacity.
+// Every compact trailing action owns an independent 48dp CircleBorder glass surface.
+// Multiple compact actions keep an 8dp gap and never merge into an oval capsule.
 // The compact top app bar must keep initial page content below the title's readable region.
 // The compact top app bar must allow scrolled content to continue behind the revealed material.
 // The compact top app bar must keep the title optically centered when only one side has actions.

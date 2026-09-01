@@ -12,10 +12,10 @@ part of '../miuix_widgets.dart';
 /// - Its start padding belongs to the measured placeable width.
 /// - The action row is measured without minimum constraints.
 /// - Its end padding belongs to the measured placeable width.
-/// - Every action owns a 40dp visual slot.
-/// - Android semantics still expose a 48dp interactive target.
-/// - Adjacent 48dp targets overlap by 8dp.
-/// - The last target extends 4dp into the trailing padding.
+/// - Plain/source actions retain one 40dp visual slot per item.
+/// - HyperOS glass actions use independent 48dp circles with 8dp gaps.
+/// - Every Android action exposes a 48dp interactive target.
+/// - The final target extends 4dp into the trailing padding.
 /// - The visible final icon remains 16dp from the trailing edge.
 /// - The title is measured only after both side widths are known.
 /// - Side widths are not replaced by their maximum.
@@ -131,7 +131,7 @@ class _MiuixCompactTopAppBarContent extends StatelessWidget {
   /// Optional navigation placeable at the logical start edge.
   final Widget? leading;
 
-  /// Optional 40dp-spaced action placeables at the logical end edge.
+  /// Optional source-spaced or HyperOS circular actions at the logical end.
   final List<Widget>? actions;
 
   /// Source center region: 52dp for large and 50dp for small bars.
@@ -171,7 +171,12 @@ class _MiuixCompactTopAppBarContent extends StatelessWidget {
         // Preserve distinct source placeable widths. Replacing these with one
         // symmetric side limit would shift titles whenever action count is not
         // balanced by a leading widget.
-        final actionWidth = (actions?.length ?? 0) * 40.0 + actionIconPadding;
+        final actionCount = actions?.length ?? 0;
+        final actionWidth = actionCount == 0
+            ? 0.0
+            : _MiuixTopBarActions.widthFor(actionCount, actionStyle) +
+                  actionIconPadding -
+                  4;
         final leadingWidth = leading == null ? 0.0 : 40 + navigationIconPadding;
         final targetOffset = _miuixTopBarTouchTargetOffset(
           context,

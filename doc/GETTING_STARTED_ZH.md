@@ -121,9 +121,11 @@ MiuixScaffold(
 );
 ```
 
-顶栏默认持续采样并模糊后方内容。一个 `actions` 项显示为圆形玻璃按钮，多个项共用
-胶囊玻璃背景；旧式透明图标使用 `actionStyle: MiuixTopAppBarActionStyle.plain`，
-滚动渐显背景使用 `blurStyle: MiuixTopAppBarBlurStyle.progressive`。
+顶栏默认持续采样并模糊后方内容，并通过连续语义色渐变让玻璃向内容边缘自然减弱。
+每个 `actions` 项都拥有独立的 48dp 圆形玻璃按钮，多个操作不会合并成椭圆胶囊；
+旧式透明图标使用 `actionStyle: MiuixTopAppBarActionStyle.plain`，滚动渐显背景使用
+`blurStyle: MiuixTopAppBarBlurStyle.progressive`，均匀背景使用
+`blurStyle: MiuixTopAppBarBlurStyle.gaussian`。
 
 默认浮动导航会保留至少 48dp 的交互目标。图标和文字同时显示时采用图标在上、
 文字在下的纵向排列；

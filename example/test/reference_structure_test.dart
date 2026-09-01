@@ -1442,7 +1442,9 @@ void main() {
       // this measurement remains valid if a preceding interaction changed it.
       await _enableReferenceBlur(tester, returnToHome: true);
 
-      final topGlass = find.byKey(const ValueKey('top-app-bar-glass')).first;
+      final topGlass = find
+          .byKey(const ValueKey('top-app-bar-progressive-glass'))
+          .first;
       final sectionTitle = find.text('搜索栏');
       final initialBar = tester.getRect(topGlass);
       final initialSection = tester.getRect(sectionTitle);
@@ -1628,7 +1630,7 @@ void main() {
     await tester.drag(homeList, const Offset(0, -300));
     await tester.pump();
     final scaffoldSurface = tester.getRect(
-      find.byKey(const ValueKey('top-app-bar-glass')).first,
+      find.byKey(const ValueKey('top-app-bar-progressive-glass')).first,
     );
     expect(scaffoldSurface.height * density, closeTo(211, .001));
     expect(tester.takeException(), isNull);
@@ -2020,29 +2022,27 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('设置').last);
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('top-app-bar-glass')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('top-app-bar-progressive-glass')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('top-app-bar-gradient-filter')),
+      findsOneWidget,
+    );
 
     await _centerReferenceSetting(tester, '顶部栏模糊样式');
     await tester.tap(find.text('顶部栏模糊样式'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('渐进模糊').last);
+    await tester.tap(find.text('滚动渐显模糊').last);
     await tester.pumpAndSettle();
 
-    final progressive = find.byKey(
-      const ValueKey('top-app-bar-progressive-filter'),
-    );
     expect(find.byKey(const ValueKey('top-app-bar-glass')), findsNothing);
-    expect(progressive, findsOneWidget);
-    expect(tester.widget<MiuixGlass>(progressive).blur, 18);
-    expect(tester.widget<MiuixGlass>(progressive).opacity, .24);
     expect(
-      tester
-          .widget<Opacity>(
-            find.byKey(const ValueKey('top-app-bar-progressive-opacity')),
-          )
-          .opacity,
-      1,
+      find.byKey(const ValueKey('top-app-bar-gradient-filter')),
+      findsOneWidget,
     );
+    expect(find.byType(ShaderMask), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

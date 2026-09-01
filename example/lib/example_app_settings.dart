@@ -28,9 +28,9 @@ class _MiuixExampleSettings {
   /// Creates the initial settings used by the original sample.
   const _MiuixExampleSettings({
     this.enableSquircle = true,
-    // HyperOS 4 uses scroll-revealed soft glass as the application default.
+    // HyperOS 4 uses persistent gradient glass as the application default.
     this.enableBlur = true,
-    this.blurStyle = 'gaussian',
+    this.blurStyle = 'gradient',
     this.glassIntensity = MiuixGlassIntensity.standard,
     this.keyColorIndex = 0,
     this.paletteStyle = MiuixThemePaletteStyle.tonalSpot,

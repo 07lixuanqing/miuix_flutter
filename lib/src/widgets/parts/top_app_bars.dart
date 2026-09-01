@@ -3,7 +3,7 @@ part of '../miuix_widgets.dart';
 /// Blur pipelines exposed by the current MIUIX example's `BlurredBar` helper.
 ///
 /// This enum describes the rendering pipeline, not merely an animation style.
-/// The two options use different source radii, blend opacity, and scroll rules.
+/// The modes use different radii, tint profiles, and scroll rules.
 /// Keeping that distinction in the component library lets applications build
 /// the same settings surface as the upstream sample without reimplementing its
 /// private `BlurredBar` wrapper around every [MiuixTopAppBar].
@@ -19,27 +19,34 @@ enum MiuixTopAppBarBlurStyle {
 
   /// Top-heavy 10dp blur that fades clear toward the lower edge.
   progressive,
+
+  /// Persistent top-to-bottom HyperOS glass gradient.
+  ///
+  /// Unlike [progressive], this material is visible before the page scrolls.
+  /// It is the default HyperOS 4 presentation; the older uniform and
+  /// scroll-revealed pipelines remain available explicitly.
+  gradient,
 }
 
 /// Visual treatment for compact top-app-bar action slots.
 ///
-/// This controls the shared surface only. Every action child retains its own
+/// This controls the action surfaces only. Every action child retains its own
 /// callback, focus state, popup anchor, tooltip, semantics, and indication.
 /// The wrapper therefore works with icon buttons and arbitrary popup triggers
 /// without turning the group into a second competing gesture target.
 enum MiuixTopAppBarActionStyle {
-  /// HyperOS 4 glass group: one action is circular, several form a capsule.
+  /// HyperOS 4 glass actions: every action owns an independent circle.
   ///
   /// The compact row already spaces icon centers by 40dp and exposes 48dp
   /// Android semantic targets. The shared material follows those established
-  /// measurements: one item is 48 by 48dp with a 24dp radius, while each extra
-  /// item extends the capsule by 40dp. This retains popup anchor positions and
-  /// title collision calculations from the source-compatible layout.
+  /// measurements: every item is 48 by 48dp with a true circular shape and an
+  /// 8dp visual gap. This keeps multiple compact actions from becoming one
+  /// elongated oval while retaining 48dp popup anchors and semantic targets.
   ///
-  /// Only the group silhouette samples the backdrop. Empty space elsewhere in
-  /// the title region stays part of the top-bar material instead of gaining a
-  /// second opaque rectangle. Global glass intensity is applied once by
-  /// [MiuixGlass], so adjacent actions do not stack multiple blur layers.
+  /// Only the circular silhouettes sample the backdrop. Their 8dp gaps and all
+  /// other empty title space remain part of the top-bar material instead of
+  /// gaining a second opaque rectangle. Each circle reads the same global
+  /// glass intensity and clips its filter to its own non-overlapping bounds.
   glass,
 
   /// Source-compatible icon-only slots without a shared background.
@@ -648,7 +655,7 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.collapseFraction,
     this.color,
     this.glass = true,
-    this.blurStyle = MiuixTopAppBarBlurStyle.gaussian,
+    this.blurStyle = MiuixTopAppBarBlurStyle.gradient,
     this.actionStyle = MiuixTopAppBarActionStyle.glass,
     this.titleColor,
     this.largeTitleColor,
@@ -706,16 +713,17 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// [MiuixTopAppBarBlurStyle.progressive] matches its second branch: a 10dp
   /// top-edge blur, a 30% surface blend, and scroll-controlled opacity.
   ///
-  /// HyperOS 4 defaults to persistent Gaussian glass so the title region
-  /// visibly samples the scene even before scrolling. Applications that need
-  /// the older scroll-revealed treatment can select [progressive] explicitly.
+  /// [MiuixTopAppBarBlurStyle.gradient] is the HyperOS 4 default: it keeps a
+  /// real, persistent backdrop sample and smoothly reduces its semantic tint
+  /// toward the content edge. Applications can still select the uniform [gaussian] or
+  /// older scroll-revealed [progressive] treatment explicitly.
   final MiuixTopAppBarBlurStyle blurStyle;
 
   /// Shape and material shared by the compact action slots.
   ///
   /// The group keeps the existing 40dp icon-center cadence and 48dp semantic
-  /// targets. A single action therefore resolves to a 48dp circle; multiple
-  /// actions share one continuous capsule. These values are project-derived
+  /// targets. Every action resolves to its own 48dp circle, including when
+  /// several actions are present. These values are project-derived
   /// from current Xiaomi application captures rather than official tokens.
   /// The default is [MiuixTopAppBarActionStyle.glass]; choose
   /// [MiuixTopAppBarActionStyle.plain] explicitly for legacy icon-only pages.
@@ -1100,14 +1108,21 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
       child: content,
     );
     if (glass) {
-      if (blurStyle == MiuixTopAppBarBlurStyle.progressive) {
-        final reveal = scrollBehavior != null
+      if (blurStyle != MiuixTopAppBarBlurStyle.gaussian) {
+        final scrollReveal = scrollBehavior != null
             ? (-scrollBehavior!.contentOffset / 48).clamp(0.0, 1.0)
             : collapseFraction != null
             ? (collapseFraction! * _collapseExtent / 48).clamp(0.0, 1.0)
             : 1.0;
+        final persistent = blurStyle == MiuixTopAppBarBlurStyle.gradient;
         return _MiuixProgressiveTopBarGlass(
-          opacity: reveal,
+          opacity: persistent ? 1 : scrollReveal,
+          blur: persistent
+              ? hyperOs4.appBarBlur
+              : hyperOs4.progressiveAppBarBlur,
+          tintOpacity: persistent
+              ? hyperOs4.appBarTintOpacity
+              : hyperOs4.progressiveAppBarTintOpacity,
           color: color ?? scheme.surface,
           child: content,
         );
@@ -1170,36 +1185,22 @@ class MiuixSmallTopAppBar extends MiuixTopAppBar {
   }) : super(large: false);
 }
 
-/// Progressive texture-blur surface used by the current sample's top bars.
+/// Continuous gradient-glass surface used by HyperOS top bars.
 ///
-/// Flutter does not expose a continuously variable blur radius in one engine
-/// filter. Masking the source backdrop with a softened power falloff
-/// preserves the visible top-to-bottom strength profile while keeping title
-/// and action content outside the mask and therefore perfectly sharp.
+/// Android Impeller can lose the real page backdrop when a [ShaderMask] or an
+/// opacity saveLayer wraps [BackdropFilter]. The bar therefore keeps one
+/// directly composited engine blur and paints a smooth three-stop semantic
+/// tint gradient inside it. This produces the intended top-to-bottom material
+/// fade without transparent title regions or horizontal slice seams.
 ///
-/// The upstream shader evaluates the blur radius for every sampled fragment.
-/// A Flutter [BackdropFilter] accepts one sigma for the whole engine layer, so
-/// this implementation uses an alpha mask over an otherwise source-sized
-/// filter. Nine evenly spaced stops retain a 22% diffusion floor beneath the
-/// stronger top region. This keeps the lower title boundary optically
-/// continuous when busy content scrolls under it while preserving the
-/// HyperOS progressive profile. The stop count avoids visible bands at the
-/// source bar's 94dp maximum height without creating several nested backdrop
-/// filters or additional offscreen render passes.
-///
-/// Only the filtered background belongs to [ShaderMask]. Placing [child]
-/// inside that mask would also fade title glyphs, navigation icons, search
-/// content, and their semantics toward the lower edge. Keeping content as the
-/// second stack layer follows Compose's modifier order: draw backdrop first,
-/// then draw ordinary component content above the effect.
+/// Title glyphs, navigation icons, search content, and semantics remain the
+/// second stack layer, so none of them are faded by the material gradient.
 ///
 /// [opacity] represents the independent scroll reveal from `BlurredBar.kt`.
-/// It is applied outside the mask so a zero-offset expanded page creates no
-/// save-layer tint, while a 48dp upward scroll exposes the complete progressive
-/// profile. The gradient still controls the vertical strength after that
-/// reveal reaches one. Five-level global glass strength remains available:
-/// [MiuixGlass] applies the navigation optical recipe while the shape and
-/// reveal timing stay unchanged.
+/// It scales the direct blur sigma and authored tint colors instead of adding
+/// an outer [Opacity]. A zero-offset explicit progressive bar therefore has no
+/// saveLayer, while a 48dp upward scroll exposes the complete profile. The
+/// default gradient style passes one and stays visible continuously.
 ///
 /// The surface has radius zero because the source passes `RectangleShape` for
 /// page bars. Dedicated liquid-glass components retain their separate rounded
@@ -1208,54 +1209,69 @@ class MiuixSmallTopAppBar extends MiuixTopAppBar {
 class _MiuixProgressiveTopBarGlass extends StatelessWidget {
   const _MiuixProgressiveTopBarGlass({
     required this.opacity,
+    required this.blur,
+    required this.tintOpacity,
     required this.color,
     required this.child,
   });
 
   final double opacity;
+  final double blur;
+  final double tintOpacity;
   final Color color;
   final Widget child;
 
-  static List<Color> get _maskColors => List<Color>.generate(9, (index) {
-    final position = index / 8;
-    final strength = .22 + .78 * (1 - math.pow(position, 1.65).toDouble());
-    return Colors.white.withValues(alpha: strength);
-  });
-
   @override
   Widget build(BuildContext context) {
-    final hyperOs4 = MiuixTheme.of(context).hyperOs4;
+    final theme = MiuixTheme.of(context);
+    if (!theme.enableGlass) {
+      return ColoredBox(color: color, child: child);
+    }
+    final reveal = opacity.isFinite ? opacity.clamp(0.0, 1.0) : 0.0;
+    final optics = MiuixGlassOptics.navigation;
+    final effectiveBlur = optics.resolveBlur(blur, theme.glassIntensity);
+    final effectiveTint = optics.resolveOpacity(
+      tintOpacity,
+      theme.glassIntensity,
+    );
     return Stack(
       key: const ValueKey('top-app-bar-progressive-glass'),
       fit: StackFit.passthrough,
       children: [
-        Positioned.fill(
-          child: Opacity(
-            key: const ValueKey('top-app-bar-progressive-opacity'),
-            opacity: opacity,
-            child: ShaderMask(
-              key: const ValueKey('top-app-bar-progressive-mask'),
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (bounds) => LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: _maskColors,
-              ).createShader(bounds),
-              child: MiuixGlass(
-                key: const ValueKey('top-app-bar-progressive-filter'),
-                blur: hyperOs4.progressiveAppBarBlur,
-                opacity: hyperOs4.progressiveAppBarTintOpacity,
-                color: color,
-                radius: 0,
-                padding: EdgeInsets.zero,
-                showSpecular: false,
-                optics: MiuixGlassOptics.navigation,
-                blendMode: BlendMode.src,
-                child: const SizedBox.expand(),
+        if (reveal > 0)
+          Positioned.fill(
+            child: ClipRect(
+              child: BackdropFilter(
+                key: const ValueKey('top-app-bar-gradient-filter'),
+                blendMode: BlendMode.srcOver,
+                filter: ui.ImageFilter.blur(
+                  sigmaX: effectiveBlur * reveal,
+                  sigmaY: effectiveBlur * reveal,
+                ),
+                child: DecoratedBox(
+                  key: const ValueKey('top-app-bar-gradient-tint'),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        color.withValues(
+                          alpha: color.a * effectiveTint * reveal,
+                        ),
+                        color.withValues(
+                          alpha: color.a * effectiveTint * .58 * reveal,
+                        ),
+                        color.withValues(
+                          alpha: color.a * effectiveTint * .22 * reveal,
+                        ),
+                      ],
+                      stops: const [0, .56, 1],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
         child,
       ],
     );
@@ -1360,14 +1376,57 @@ class _MiuixTopBarActions extends StatelessWidget {
   final EdgeInsets targetInsets;
   final MiuixTopAppBarActionStyle style;
 
+  static const double _circleSize = 48;
+  static const double _circleGap = 8;
+
+  static double widthFor(int count, MiuixTopAppBarActionStyle style) {
+    if (count <= 0) return 0;
+    return switch (style) {
+      MiuixTopAppBarActionStyle.glass =>
+        count * _circleSize + (count - 1) * _circleGap,
+      MiuixTopAppBarActionStyle.plain => count * 40 + 8,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Compose keeps adjacent icon centers 40dp apart even though Android
-    // exposes a 48dp minimum touch target. The targets therefore overlap by
-    // 8dp. A Stack reproduces that geometry without changing title
-    // reservation or the popup anchor's center.
-    Widget contents = SizedBox(
-      width: children.length * 40 + 8,
+    // Explicit plain/source actions retain Compose's overlapping 40dp center
+    // cadence. HyperOS glass actions use the independent circular branch above.
+    if (style == MiuixTopAppBarActionStyle.glass) {
+      final scheme = Theme.of(context).colorScheme;
+      return SizedBox(
+        key: const ValueKey('top-app-bar-glass-actions'),
+        width: widthFor(children.length, style),
+        height: _circleSize,
+        child: Row(
+          spacing: _circleGap,
+          children: [
+            for (var index = 0; index < children.length; index++)
+              SizedBox.square(
+                dimension: _circleSize,
+                child: MiuixGlass(
+                  key: ValueKey('top-app-bar-glass-action-$index'),
+                  blur: MiuixTheme.of(context).hyperOs4.appBarBlur,
+                  opacity: MiuixTheme.of(context).hyperOs4.appBarTintOpacity,
+                  color: scheme.surfaceContainer,
+                  shape: const CircleBorder(),
+                  padding: EdgeInsets.zero,
+                  optics: MiuixGlassOptics.navigation,
+                  child: Center(
+                    child: _MiuixIconButtonTargetOffset(
+                      offset: targetOffset,
+                      insets: targetInsets,
+                      child: children[index],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+    return SizedBox(
+      width: widthFor(children.length, style),
       height: 48,
       child: Stack(
         children: [
@@ -1387,24 +1446,5 @@ class _MiuixTopBarActions extends StatelessWidget {
         ],
       ),
     );
-    if (style == MiuixTopAppBarActionStyle.glass) {
-      final scheme = Theme.of(context).colorScheme;
-      final width = children.length * 40 + 8.0;
-      contents = SizedBox(
-        key: const ValueKey('top-app-bar-glass-actions'),
-        width: width,
-        height: 48,
-        child: MiuixGlass(
-          blur: MiuixTheme.of(context).hyperOs4.appBarBlur,
-          opacity: MiuixTheme.of(context).hyperOs4.appBarTintOpacity,
-          color: scheme.surfaceContainer,
-          radius: 24,
-          padding: EdgeInsets.zero,
-          optics: MiuixGlassOptics.navigation,
-          child: contents,
-        ),
-      );
-    }
-    return contents;
   }
 }

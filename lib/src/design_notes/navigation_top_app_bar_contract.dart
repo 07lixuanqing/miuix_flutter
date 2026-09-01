@@ -463,8 +463,8 @@
 // Invalid action padding restores the public action-padding value.
 // Collapse calculations consume the same public height and bottom insets.
 // Preferred-size calculations consume the same public height values.
-// Defaults exposure does not change Gaussian or progressive blur selection.
-// Defaults exposure does not change action-group glass geometry.
+// Defaults exposure does not change Gaussian, gradient, or progressive selection.
+// HyperOS action glass uses independent circles; plain mode retains source slots.
 // Defaults exposure does not change nested-scroll spring stiffness.
 // Defaults exposure does not change reduced-motion settling behavior.
 // Focused tests compare every public source metric to current Kotlin source.

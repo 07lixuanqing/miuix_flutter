@@ -57,7 +57,7 @@ class MiuixSliverTopAppBar extends StatefulWidget {
     this.collapsedHeight,
     this.color,
     this.glass = true,
-    this.blurStyle = MiuixTopAppBarBlurStyle.progressive,
+    this.blurStyle = MiuixTopAppBarBlurStyle.gradient,
     this.titleColor,
     this.largeTitleColor,
     this.subtitleColor,

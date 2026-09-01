@@ -43,8 +43,9 @@ const _referenceNavigationModeEntries = <MiuixDropdownEntry<String>>[
 ];
 
 const _referenceBlurStyleEntries = <MiuixDropdownEntry<String>>[
-  MiuixDropdownEntry(value: 'gaussian', label: '高斯模糊'),
-  MiuixDropdownEntry(value: 'progressive', label: '渐进模糊'),
+  MiuixDropdownEntry(value: 'gradient', label: '渐变模糊'),
+  MiuixDropdownEntry(value: 'gaussian', label: '均匀模糊'),
+  MiuixDropdownEntry(value: 'progressive', label: '滚动渐显模糊'),
 ];
 
 const _referenceNavigationTransitionEntries = <MiuixDropdownEntry<String>>[

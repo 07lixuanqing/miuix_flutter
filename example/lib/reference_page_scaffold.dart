@@ -196,9 +196,11 @@ class _ReferencePageScaffoldState extends State<_ReferencePageScaffold> {
               // primary hierarchy and no vertical collapse behavior is wired.
               large: !widget.wide,
               glass: widget.enableBlur,
-              blurStyle: appSettings?.blurStyle == 'progressive'
-                  ? MiuixTopAppBarBlurStyle.progressive
-                  : MiuixTopAppBarBlurStyle.gaussian,
+              blurStyle: switch (appSettings?.blurStyle) {
+                'gaussian' => MiuixTopAppBarBlurStyle.gaussian,
+                'progressive' => MiuixTopAppBarBlurStyle.progressive,
+                _ => MiuixTopAppBarBlurStyle.gradient,
+              },
               scrollBehavior: widget.wide ? null : _scrollBehavior,
               defaultWindowInsetsPadding: !widget.wide,
               leading: widget.leading,

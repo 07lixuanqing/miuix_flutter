@@ -212,9 +212,11 @@ MiuixScaffold(
 );
 ```
 
-`MiuixTopAppBar` 默认使用持续高斯磨砂背景，右侧一个操作会形成 48dp 圆形玻璃面，
-多个操作共用连续胶囊。需要旧的滚动渐显背景时显式传入
-`blurStyle: MiuixTopAppBarBlurStyle.progressive`；需要无背景图标时传入
+`MiuixTopAppBar` 默认使用持续的渐变玻璃背景：一个直接合成的背景滤镜保持真实模糊，
+三段语义色渐变让材质向内容边缘自然减弱。右侧每个操作都拥有独立的 48dp 圆形玻璃
+表面，相邻圆形间距 8dp，多个操作不会合并成椭圆胶囊。需要旧的滚动渐显背景时
+显式传入 `blurStyle: MiuixTopAppBarBlurStyle.progressive`；需要均匀背景时使用
+`MiuixTopAppBarBlurStyle.gaussian`；需要无背景图标时传入
 `actionStyle: MiuixTopAppBarActionStyle.plain`。尺寸为项目画面推导值。
 
 长列表页面优先把 `MiuixSliverTopAppBar` 作为 `CustomScrollView` 的第一个 sliver。
