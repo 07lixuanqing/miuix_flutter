@@ -15,6 +15,10 @@ analyzer:
     # example's source analysis.
     - "**/build/**"
     - "**/.dart_tool/**"
+    - build/**
+    - android/**
+    - web/**
+    - windows/**
 
 linter:
   # The lint rules applied to this project can be customized in the

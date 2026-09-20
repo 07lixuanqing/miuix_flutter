@@ -2372,6 +2372,8 @@ class MiuixToast {
           : SnackBarAction(label: actionLabel, onPressed: onAction ?? () {}),
       duration: duration,
       withDismissAction: withDismissAction,
+      // Plain toast feedback must never block controls behind its overlay.
+      ignorePointer: actionLabel == null && !withDismissAction,
     );
   }
 }

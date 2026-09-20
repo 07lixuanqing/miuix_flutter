@@ -1080,23 +1080,21 @@ class _MiuixIosLiquidGlassNavigationBarState
       ],
     );
 
-    // The explicit source constructor retains the old independently sampled
-    // 10/14dp depth lens. The HyperOS selector is instead a translucent tint
-    // over the panel's one shared backdrop sample. Applying another four-dp
-    // BackdropFilter inside it double-blurred the selected destination and
-    // made that slot turn cloudy as soon as selection settled.
-    if (glassEnabled && sourceOptics) {
+    // The selected destination remains a real glass lens in both geometries.
+    // The complete panel supplies the broad background blur; this lighter,
+    // exact-bounds pass restores the local focus blur that distinguishes the
+    // selected tab. HyperOS omits the source refraction and depth channels so
+    // it does not regain the old cloudy double-capsule appearance.
+    if (glassEnabled) {
       contents = _MiuixLiquidLensBackdrop(
         key: const ValueKey('ios-liquid-indicator-lens-filter'),
         radius: _indicatorHeight / 2,
-        // Compose samples a second backdrop that already contains the panel's
-        // 4dp blur. Flutter does not expose that combined layer, so repeat the
-        // same blur here before applying the optional desktop refraction.
-        blurSigma: MiuixTheme.of(context).glassIntensity.resolveBlur(4),
-        refractionHeight: 10 * progress,
-        refractionAmount: 14 * progress,
-        depthEffect: true,
-        chromaticAberration: .5,
+        blurSigma: intensity.resolveBlur(sourceOptics ? 4 : 2.5),
+        refractionHeight: sourceOptics ? 10 * progress : 0,
+        refractionAmount: sourceOptics ? 14 * progress : 0,
+        samplePadding: sourceOptics ? null : 0,
+        depthEffect: sourceOptics,
+        chromaticAberration: sourceOptics ? .5 : 0,
         child: contents,
       );
     }
@@ -1138,6 +1136,7 @@ class _MiuixIosLiquidGlassNavigationBarState
                     index: index,
                     color: itemColor,
                     interactive: interactive,
+                    selected: selectionWeight >= .5,
                     useSelectedIcon: useSelectedIcons && selectionWeight >= .5,
                   ),
                 ),
@@ -1188,6 +1187,7 @@ class _MiuixIosLiquidGlassNavigationBarState
     required int index,
     required Color color,
     required bool interactive,
+    required bool selected,
     required bool useSelectedIcon,
   }) {
     final item = widget.items[index];
@@ -1233,6 +1233,25 @@ class _MiuixIosLiquidGlassNavigationBarState
           label(),
         ],
       ),
+      MiuixFloatingNavigationBarDisplayMode.iconWithSelectedLabel =>
+        selected
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _miuixNavigationIconWithBadge(
+                    icon: iconAnchor,
+                    badge: item.badge,
+                  ),
+                  const SizedBox(height: 1),
+                  label(),
+                ],
+              )
+            : Center(
+                child: _miuixNavigationIconWithBadge(
+                  icon: iconAnchor,
+                  badge: item.badge,
+                ),
+              ),
     };
     // The clipped selected copy is paint-only. Excluding it from semantics
     // avoids duplicate labels, keys, and accessibility automation targets.

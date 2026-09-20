@@ -1781,6 +1781,7 @@ class MiuixSnackbar extends StatelessWidget {
     SnackBarAction? action,
     MiuixSnackbarDuration duration = MiuixSnackbarDuration.short,
     bool withDismissAction = false,
+    bool ignorePointer = false,
   }) {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     final controller = MiuixSnackbarController._();
@@ -1797,6 +1798,7 @@ class MiuixSnackbar extends StatelessWidget {
         onAction: action?.onPressed,
         duration: duration,
         withDismissAction: withDismissAction,
+        ignorePointer: ignorePointer,
         reduceMotion: callerReduceMotion,
         onDismissed: () {
           controller._dismiss = null;
@@ -1856,6 +1858,7 @@ class _MiuixSnackbarOverlay extends StatefulWidget {
     required this.onDismissed,
     required this.duration,
     required this.withDismissAction,
+    required this.ignorePointer,
     required this.reduceMotion,
     this.actionLabel,
     this.onAction,
@@ -1866,6 +1869,7 @@ class _MiuixSnackbarOverlay extends StatefulWidget {
   final VoidCallback? onAction;
   final MiuixSnackbarDuration duration;
   final bool withDismissAction;
+  final bool ignorePointer;
   final bool reduceMotion;
   final VoidCallback onDismissed;
 
@@ -1983,29 +1987,32 @@ class _MiuixSnackbarOverlayState extends State<_MiuixSnackbarOverlay>
       left: 0,
       right: 0,
       bottom: bottom,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          final progress = _reduceMotion
-              ? (_dismissed ? 0.0 : 1.0)
-              : _controller.value.clamp(0.0, 1.0);
-          return Opacity(
-            opacity: progress,
-            child: FractionalTranslation(
-              translation: Offset(0, 1 - progress),
-              child: child,
+      child: IgnorePointer(
+        ignoring: widget.ignorePointer,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            final progress = _reduceMotion
+                ? (_dismissed ? 0.0 : 1.0)
+                : _controller.value.clamp(0.0, 1.0);
+            return Opacity(
+              opacity: progress,
+              child: FractionalTranslation(
+                translation: Offset(0, 1 - progress),
+                child: child,
+              ),
+            );
+          },
+          child: _MiuixSnackbarSurface(
+            visuals: MiuixSnackbarVisuals(
+              message: widget.message,
+              actionLabel: widget.actionLabel,
+              duration: widget.duration,
+              withDismissAction: widget.withDismissAction,
             ),
-          );
-        },
-        child: _MiuixSnackbarSurface(
-          visuals: MiuixSnackbarVisuals(
-            message: widget.message,
-            actionLabel: widget.actionLabel,
-            duration: widget.duration,
-            withDismissAction: widget.withDismissAction,
+            onAction: widget.actionLabel == null ? null : _performAction,
+            onDismiss: widget.withDismissAction ? _dismiss : null,
           ),
-          onAction: widget.actionLabel == null ? null : _performAction,
-          onDismiss: widget.withDismissAction ? _dismiss : null,
         ),
       ),
     );

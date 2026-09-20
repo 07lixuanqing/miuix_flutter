@@ -7300,7 +7300,7 @@ void _registerCoreWidgetTests() {
     expect(bar.preferredSize.height, 56);
   });
 
-  testWidgets('progressive top bar uses direct blur and scroll reveal', (
+  testWidgets('progressive top bar uses gradient blur and scroll reveal', (
     tester,
   ) async {
     final behavior = MiuixTopAppBarScrollBehavior();
@@ -7352,15 +7352,20 @@ void _registerCoreWidgetTests() {
         of: find.byKey(const ValueKey('top-app-bar-progressive-glass')),
         matching: find.byType(BackdropFilter),
       ),
-      findsOneWidget,
+      findsNWidgets(3),
     );
     expect(
       tester
-          .widget<BackdropFilter>(
+          .widget<MiuixProgressiveLayerBackdrop>(
             find.byKey(const ValueKey('top-app-bar-gradient-filter')),
           )
-          .blendMode,
-      BlendMode.srcOver,
+          .gradient,
+      const MiuixProgressiveBlur(
+        angle: 90,
+        startFraction: .68,
+        endFraction: 1,
+        curve: .8,
+      ),
     );
     expect(tester.takeException(), isNull);
   });

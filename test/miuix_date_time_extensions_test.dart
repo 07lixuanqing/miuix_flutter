@@ -84,15 +84,33 @@ void main() {
       find.byIcon(MiuixExtendedIconCatalog.find('ChevronForward')!.regular),
       findsOneWidget,
     );
-    // Six fixed-height rows, weekday labels, header, and the surface padding
-    // must stay compact even under the route's MediaQuery safe-area insets.
+    // Six rows only when the month needs them; weekday labels, header, and
+    // surface padding stay compact under the route's MediaQuery safe-area insets.
     expect(
       tester.getSize(find.byType(MiuixCalendar)).height,
-      closeTo(372, 0.01),
+      closeTo(444, 0.01),
     );
     await tester.tap(find.text('13'));
     await tester.pumpAndSettle();
     expect(controller.state.selectedDates, contains(DateTime(2026, 8, 13)));
+  });
+
+  testWidgets('calendar omits trailing weeks with no day of the visible month', (
+    tester,
+  ) async {
+    // September 2026 (Mon-first) fits in five weeks; do not paint Oct 5–11.
+    final controller = MiuixCalendarController(visibleMonth: DateTime(2026, 9));
+    await pumpExtension(
+      tester,
+      SizedBox(width: 360, child: MiuixCalendar(controller: controller)),
+    );
+    final augustHeight = 444.0;
+    final fiveWeekHeight = augustHeight - MiuixCalendarDefaults.dayExtent;
+    expect(
+      tester.getSize(find.byType(MiuixCalendar)).height,
+      closeTo(fiveWeekHeight, 0.01),
+    );
+    expect(find.text('30'), findsOneWidget);
   });
 
   testWidgets('calendar wraps unchecked first-weekday values consistently', (

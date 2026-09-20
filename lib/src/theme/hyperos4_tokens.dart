@@ -20,8 +20,10 @@ class MiuixHyperOs4Tokens {
     this.sliverAppBarCollapsedHeight = 56,
     this.sliverAppBarCollapsedSubtitleHeight = 62,
     this.sliverAppBarSnapMotion = const Duration(milliseconds: 260),
-    this.floatingNavigationBlur = 28,
-    this.floatingNavigationTintOpacity = .52,
+    // Clearer HyperOS dock: less Gaussian milk, lower base tint so the
+    // five-level controller (esp. intense) stays genuinely translucent.
+    this.floatingNavigationBlur = 16,
+    this.floatingNavigationTintOpacity = .38,
     this.floatingNavigationHeight = 58,
     this.floatingNavigationItemHeight = 52,
     this.floatingNavigationTwoItemWidth = 104,

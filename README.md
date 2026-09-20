@@ -90,6 +90,40 @@ class DemoApp extends StatelessWidget {
 - MIUIX 图标字体、超椭圆和液态玻璃效果
 - Android 原生 MIUIX 震动角色；Windows 自动使用 Flutter 安全回退
 
+## 大标题与刷新布局约定
+
+`MiuixTopAppBar` 的大标题只应在页面内容确实超过可视高度时随滚动折叠。内容不足一屏时，`MiuixTopAppBarScrollBehavior` 会保持展开状态；即使列表为了支持下拉刷新使用了 `AlwaysScrollableScrollPhysics`，回弹手势也不会触发大小标题切换。
+
+下拉刷新圆形指示器应显示在完整标题区域下方，而不是覆盖状态栏或标题。`MiuixScaffold` 会自动把标题连接到页面滚动；应用只需把标题区高度同时用于列表和刷新指示器的顶部间距。仅当 `MiuixPullToRefresh` 没有放在 `MiuixScaffold` 中时，才需要给它显式传入 `topAppBarScrollBehavior`：
+
+```dart
+// 在 State 中创建，并在 dispose() 中释放。
+final scrollBehavior = MiuixTopAppBarScrollBehavior();
+final topBar = MiuixTopAppBar(
+  title: '通知中心',
+  subtitle: '全部消息',
+  scrollBehavior: scrollBehavior,
+);
+final topContentInset = MediaQuery.viewPaddingOf(context).top +
+    topBar.preferredSize.height +
+    12;
+
+return MiuixScaffold(
+  topBar: topBar,
+  body: MiuixPullToRefresh.source(
+    contentPadding: EdgeInsets.only(top: topContentInset),
+    onRefresh: refresh,
+    child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(16, topContentInset, 16, 24),
+      children: const [/* 页面内容 */],
+    ),
+  ),
+);
+```
+
+判断能否折叠应以实际 `ScrollMetrics` 为准，不要通过写死屏幕高度、条目数量或字体大小推测；这样字体缩放、横屏和平板布局变化后仍能保持正确行为。
+
 ## 平台说明
 
 - [完整接入指南](doc/GETTING_STARTED_ZH.md)

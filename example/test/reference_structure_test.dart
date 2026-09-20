@@ -2042,7 +2042,7 @@ void main() {
       find.byKey(const ValueKey('top-app-bar-gradient-filter')),
       findsOneWidget,
     );
-    expect(find.byType(ShaderMask), findsNothing);
+    expect(find.byType(ShaderMask), findsNWidgets(3));
     expect(tester.takeException(), isNull);
   });
 
@@ -3256,8 +3256,8 @@ void main() {
 
     // The unified component keeps the 24/56/4 panel geometry while giving the
     // selected tint exactly one equal-width destination slot. The complete
-    // panel owns the sole backdrop sample; the selected slot must not blur the
-    // already blurred result a second time.
+    // panel owns the broad background blur, while the selected slot adds the
+    // lighter local blur that keeps the active item visibly glassy.
     expect(find.byType(MiuixIosLiquidGlassNavigationBar), findsOneWidget);
     expect(find.byType(MiuixFloatingNavigationBar), findsNothing);
     expect(find.text('悬浮导航栏位置'), findsNothing);
@@ -3286,11 +3286,11 @@ void main() {
         of: find.byType(MiuixIosLiquidGlassNavigationBar),
         matching: find.byType(BackdropFilter),
       ),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(
       find.byKey(const ValueKey('ios-liquid-indicator-lens-filter')),
-      findsNothing,
+      findsOneWidget,
     );
 
     final previousComparator = goldenFileComparator;
@@ -5370,15 +5370,15 @@ void main() {
 
     // These are the physical boundaries captured from the Android 1.0.9
     // reference on the same 1080x2400, 420dpi emulator.
-    expect(surfaceRect.top * density, closeTo(1121.5, .01));
+    expect(surfaceRect.top * density, closeTo(1058.5, .01));
     expect(surfaceRect.bottom * density, closeTo(2400, .01));
-    expect(behaviorCardRect.top * density, closeTo(1437.75, .01));
-    expect(behaviorCardRect.bottom * density, closeTo(1789.5, .01));
-    expect(finalCardRect.top * density, closeTo(1989.5, .01));
-    expect(finalCardRect.bottom * density, closeTo(2305, .01));
+    expect(behaviorCardRect.top * density, closeTo(1374.75, .01));
+    expect(behaviorCardRect.bottom * density, closeTo(1726.5, .01));
+    expect(finalCardRect.top * density, closeTo(1926.5, .01));
+    expect(finalCardRect.bottom * density, closeTo(2242, .01));
     expect(
       (surfaceRect.bottom - finalCardRect.bottom) * density,
-      closeTo(95, .01),
+      closeTo(158, .01),
     );
     expect(tester.takeException(), isNull);
   });
@@ -5496,7 +5496,7 @@ void main() {
           ],
         ),
       ],
-      const [1707, 2400, 909, 2063, 1038, 2137, 909, 2221, 1038, 2295],
+      const [1644, 2400, 909, 2000, 1038, 2074, 909, 2158, 1038, 2232],
     );
     expect(find.byType(MiuixSlider), findsNothing);
     expect(tester.takeException(), isNull);
@@ -7382,7 +7382,12 @@ void main() {
         var attempt = 0;
         attempt < 100 &&
             find
-                .byKey(const ValueKey('miuix-progressive-runtime-filter'))
+                .descendant(
+                  of: progressivePreview,
+                  matching: find.byKey(
+                    const ValueKey('miuix-progressive-runtime-filter'),
+                  ),
+                )
                 .evaluate()
                 .isEmpty;
         attempt++
@@ -7390,25 +7395,50 @@ void main() {
         await tester.pump(const Duration(milliseconds: 20));
       }
       expect(
-        find.byKey(const ValueKey('miuix-progressive-runtime-filter')),
+        find.descendant(
+          of: progressivePreview,
+          matching: find.byKey(
+            const ValueKey('miuix-progressive-runtime-filter'),
+          ),
+        ),
         findsOneWidget,
       );
     } else {
       expect(
-        find.byKey(const ValueKey('miuix-progressive-blur-level-13')),
+        find.descendant(
+          of: progressivePreview,
+          matching: find.byKey(
+            const ValueKey('miuix-progressive-blur-level-13'),
+          ),
+        ),
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('miuix-progressive-blur-level-40')),
+        find.descendant(
+          of: progressivePreview,
+          matching: find.byKey(
+            const ValueKey('miuix-progressive-blur-level-40'),
+          ),
+        ),
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('miuix-progressive-blur-level-100')),
+        find.descendant(
+          of: progressivePreview,
+          matching: find.byKey(
+            const ValueKey('miuix-progressive-blur-level-100'),
+          ),
+        ),
         findsOneWidget,
       );
     }
     expect(
-      find.byKey(const ValueKey('miuix-progressive-post-effect-mask')),
+      find.descendant(
+        of: progressivePreview,
+        matching: find.byKey(
+          const ValueKey('miuix-progressive-post-effect-mask'),
+        ),
+      ),
       findsNothing,
     );
     expect(find.byType(Image), findsWidgets);

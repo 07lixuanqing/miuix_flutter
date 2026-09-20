@@ -1408,6 +1408,41 @@ void _registerOverlayColorTests() {
     );
   });
 
+  testWidgets('window dialog preserves the caller scoped text scaler', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MiuixTheme(
+          child: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(1.6)),
+              child: Builder(
+                builder: (scaledContext) => MiuixButton(
+                  label: 'Open scaled dialog',
+                  onPressed: () => MiuixDialog.show<void>(
+                    context: scaledContext,
+                    title: 'Scaled title',
+                    content: const Text('Scaled content'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open scaled dialog'));
+    await tester.pumpAndSettle();
+
+    final dialogContext = tester.element(find.byType(MiuixDialog));
+    expect(MediaQuery.textScalerOf(dialogContext).scale(10), 16);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('custom dialog, sheet, and popup surfaces route safely', (
     tester,
   ) async {
@@ -4144,6 +4179,93 @@ void _registerOverlayColorTests() {
     );
     expect(surface.height, lessThan(180));
     expect(surface.bottom, closeTo(800, 1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('bottom sheet content stays above the gesture indicator', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(bottom: 24);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 24);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => MiuixButton(
+            label: 'Open safe sheet',
+            onPressed: () => MiuixBottomSheet.show<void>(
+              context: context,
+              child: const SizedBox(
+                key: ValueKey('safe-sheet-content'),
+                height: 96,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open safe sheet'));
+    await tester.pumpAndSettle();
+
+    final surface = tester.getRect(
+      find.byKey(const ValueKey('miuix-bottom-sheet-surface')),
+    );
+    final content = tester.getRect(
+      find.byKey(const ValueKey('safe-sheet-content')),
+    );
+    expect(surface.bottom, closeTo(800, .1));
+    expect(content.bottom, closeTo(776, .1));
+    expect(surface.bottom - content.bottom, closeTo(24, .1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('bottom sheet does not double count navigation under the IME', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding();
+    tester.view.viewPadding = const FakeViewPadding(bottom: 24);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+    addTearDown(tester.view.resetViewInsets);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => MiuixButton(
+            label: 'Open IME sheet',
+            onPressed: () => MiuixBottomSheet.show<void>(
+              context: context,
+              child: const SizedBox(
+                key: ValueKey('ime-sheet-content'),
+                height: 96,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open IME sheet'));
+    await tester.pumpAndSettle();
+
+    final surface = tester.getRect(
+      find.byKey(const ValueKey('miuix-bottom-sheet-surface')),
+    );
+    final content = tester.getRect(
+      find.byKey(const ValueKey('ime-sheet-content')),
+    );
+    expect(surface.bottom, closeTo(480, .1));
+    expect(content.bottom, closeTo(surface.bottom, .1));
     expect(tester.takeException(), isNull);
   });
 

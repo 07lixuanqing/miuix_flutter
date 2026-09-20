@@ -1637,6 +1637,46 @@ void _registerNavigationInputTests() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('underfilled pages keep the large title expanded', (
+    tester,
+  ) async {
+    final behavior = MiuixTopAppBarScrollBehavior(snapDuration: Duration.zero);
+    addTearDown(behavior.dispose);
+    final metrics = FixedScrollMetrics(
+      minScrollExtent: 0,
+      maxScrollExtent: 0,
+      pixels: 0,
+      viewportDimension: 800,
+      axisDirection: AxisDirection.down,
+      devicePixelRatio: 1,
+    );
+    await tester.pumpWidget(
+      const MaterialApp(home: SizedBox(key: ValueKey('short-page-host'))),
+    );
+    final context = tester.element(
+      find.byKey(const ValueKey('short-page-host')),
+    );
+
+    behavior.setCollapseFraction(.75);
+    behavior.syncMetrics(metrics);
+    expect(behavior.collapseFraction, 0);
+    expect(behavior.contentOffset, 0);
+
+    behavior.handleNotification(
+      OverscrollNotification(
+        metrics: metrics,
+        context: context,
+        overscroll: 80,
+        dragDetails: DragUpdateDetails(
+          globalPosition: Offset.zero,
+          delta: const Offset(0, -80),
+        ),
+      ),
+    );
+    expect(behavior.collapseFraction, 0);
+    expect(behavior.contentOffset, 0);
+  });
+
   testWidgets('small top bar pins and restores a shared scroll behavior', (
     tester,
   ) async {
@@ -2618,7 +2658,7 @@ void _registerNavigationInputTests() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('floating navigation exposes all three source display modes', (
+  testWidgets('floating navigation exposes all four display modes', (
     tester,
   ) async {
     var mode = MiuixFloatingNavigationBarDisplayMode.iconAndText;
@@ -2717,6 +2757,53 @@ void _registerNavigationInputTests() {
     expect(find.byIcon(Icons.home_outlined), findsOneWidget);
     expect(itemSize(), const Size(104, 52));
     expect(indicatorSize(), const Size(100, 52));
+
+    updateHost(
+      () => mode = MiuixFloatingNavigationBarDisplayMode.iconWithSelectedLabel,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Home'), findsNWidgets(2));
+    expect(find.text('Settings'), findsNothing);
+    expect(find.byIcon(Icons.home_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    expect(itemSize(), const Size(104, 52));
+    expect(indicatorSize(), const Size(100, 52));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('iOS-like navigation shows only the selected label', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MiuixTheme(
+          child: Scaffold(
+            bottomNavigationBar: MiuixIosLiquidGlassNavigationBar.source(
+              selectedIndex: 0,
+              displayMode:
+                  MiuixFloatingNavigationBarDisplayMode.iconWithSelectedLabel,
+              onDestinationSelected: (_) {},
+              items: const [
+                MiuixNavigationItem(icon: Icon(Icons.home), label: 'Home'),
+                MiuixNavigationItem(
+                  icon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Settings'), findsNothing);
+    expect(find.byIcon(Icons.home), findsOneWidget);
+    expect(find.byIcon(Icons.settings), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -3707,6 +3794,55 @@ void _registerNavigationInputTests() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('floating navigation supports a compact gesture-bar gap', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(bottom: 24);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 24);
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MiuixTheme(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: MiuixFloatingNavigationBar(
+              bottomMargin: 4,
+              selectedIndex: 0,
+              onSelected: (_) {},
+              items: const [
+                MiuixNavigationItem(icon: Icon(Icons.home), label: 'Home'),
+                MiuixNavigationItem(
+                  icon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final navigation = tester.getRect(find.byType(MiuixFloatingNavigationBar));
+    final pill = tester.getRect(
+      find.byKey(const ValueKey('floating-navigation-surface')),
+    );
+    debugDefaultTargetPlatformOverride = null;
+    expect(navigation.bottom, 600);
+    // The 24dp system gesture region owns the safety clearance. This override
+    // adds only 4dp, keeping the capsule close to the gesture handle.
+    expect(navigation.bottom - pill.bottom, 28);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('floating navigation animates caption above the gesture gap', (
     tester,
   ) async {
@@ -4082,7 +4218,7 @@ void _registerNavigationInputTests() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('HyperOS liquid selector paints one travelling selection layer', (
+  testWidgets('HyperOS liquid selector keeps a local selected blur layer', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -4139,14 +4275,14 @@ void _registerNavigationInputTests() {
     );
     expect(
       find.byKey(const ValueKey('ios-liquid-indicator-lens-filter')),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
       find.descendant(
         of: find.byType(MiuixIosLiquidGlassNavigationBar),
         matching: find.byType(BackdropFilter),
       ),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     final singleFill = tester.widget<ColoredBox>(
       find.byKey(const ValueKey('ios-liquid-indicator-single-fill')),
@@ -4214,7 +4350,7 @@ void _registerNavigationInputTests() {
     );
     expect(
       find.byKey(const ValueKey('ios-liquid-indicator-lens-filter')),
-      findsNothing,
+      findsOneWidget,
     );
     await drag.moveBy(const Offset(72, 0));
     await tester.pump(const Duration(milliseconds: 16));
@@ -4227,7 +4363,7 @@ void _registerNavigationInputTests() {
         of: find.byType(MiuixIosLiquidGlassNavigationBar),
         matching: find.byType(BackdropFilter),
       ),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     await drag.up();
     await tester.pumpAndSettle();
@@ -4826,11 +4962,23 @@ void _registerNavigationInputTests() {
       MaterialApp(
         home: MiuixTheme(
           data: MiuixThemeData.defaults(),
-          child: const Scaffold(
+          child: Scaffold(
             appBar: MiuixTopAppBar(
               title: 'Browse',
               large: false,
-              actions: [Icon(Icons.search), Icon(Icons.more_vert)],
+              actions: [
+                MiuixIconButton(
+                  key: const ValueKey('selected-top-action'),
+                  selected: true,
+                  onPressed: () {},
+                  icon: const Icon(Icons.search),
+                ),
+                MiuixIconButton(
+                  key: const ValueKey('normal-top-action'),
+                  onPressed: () {},
+                  icon: const Icon(Icons.more_vert),
+                ),
+              ],
             ),
           ),
         ),
@@ -4845,9 +4993,9 @@ void _registerNavigationInputTests() {
       find.byKey(const ValueKey('top-app-bar-progressive-glass')),
       findsOneWidget,
     );
-    expect(find.byType(ShaderMask), findsNothing);
+    expect(find.byType(ShaderMask), findsNWidgets(3));
     final actionGroup = find.byKey(const ValueKey('top-app-bar-glass-actions'));
-    expect(tester.getSize(actionGroup), const Size(104, 48));
+    expect(tester.getSize(actionGroup), const Size(100, 48));
     final actionGlass = find.descendant(
       of: actionGroup,
       matching: find.byType(MiuixGlass),
@@ -4855,7 +5003,25 @@ void _registerNavigationInputTests() {
     expect(actionGlass, findsNWidgets(2));
     for (final glass in tester.widgetList<MiuixGlass>(actionGlass)) {
       expect(glass.shape, isA<CircleBorder>());
+      expect(tester.getSize(find.byWidget(glass)), const Size(44, 44));
     }
+    final selectedAction = find.byKey(const ValueKey('selected-top-action'));
+    final selectedSurface = tester.widget<DecoratedBox>(
+      find.descendant(
+        of: selectedAction,
+        matching: find.byKey(const ValueKey('miuix-icon-button-surface')),
+      ),
+    );
+    final selectedDecoration = selectedSurface.decoration as ShapeDecoration;
+    expect(selectedDecoration.shape, isA<CircleBorder>());
+    expect(selectedDecoration.color!.a, closeTo(.14, .001));
+    final selectedIconTheme = tester.widget<IconTheme>(
+      find.descendant(of: selectedAction, matching: find.byType(IconTheme)),
+    );
+    expect(
+      selectedIconTheme.data.color,
+      Theme.of(tester.element(selectedAction)).colorScheme.primary,
+    );
     expect(
       find.descendant(of: actionGroup, matching: find.byType(BackdropFilter)),
       findsNWidgets(2),

@@ -39,8 +39,9 @@ enum MiuixTopAppBarActionStyle {
   ///
   /// The compact row already spaces icon centers by 40dp and exposes 48dp
   /// Android semantic targets. The shared material follows those established
-  /// measurements: every item is 48 by 48dp with a true circular shape and an
-  /// 8dp visual gap. This keeps multiple compact actions from becoming one
+  /// measurements: every item has a 44dp visible circle inside its 48dp
+  /// Android interaction target, with an 8dp visual gap. This keeps multiple
+  /// compact actions from becoming one
   /// elongated oval while retaining 48dp popup anchors and semantic targets.
   ///
   /// Only the circular silhouettes sample the backdrop. Their 8dp gaps and all
@@ -208,6 +209,7 @@ class MiuixTopAppBarScrollBehavior extends ChangeNotifier {
   bool _pinnedBySmallTopAppBar = false;
   bool _smallTopBarPinScheduled = false;
   bool _listenerNotificationScheduled = false;
+  bool? _contentScrollable;
   int _topBarModeGeneration = 0;
   bool _disposed = false;
   bool _reduceMotion = false;
@@ -266,6 +268,14 @@ class MiuixTopAppBarScrollBehavior extends ChangeNotifier {
   /// deeply restored list.
   void syncMetrics(ScrollMetrics metrics) {
     if (metrics.axis != Axis.vertical) return;
+    if (!_hasScrollableContent(metrics)) {
+      // A page that already fits inside its viewport has no compact reading
+      // state to reveal. Always-scrollable physics may still emit pull and
+      // overscroll notifications for refresh, but those gestures must not
+      // collapse the large title.
+      expand();
+      return;
+    }
     _cancelSettle();
     // PageStorage and programmatic jumps can bypass handleNotification. A
     // shared SmallTopAppBar still pins heightOffset to zero on that path while
@@ -357,6 +367,10 @@ class MiuixTopAppBarScrollBehavior extends ChangeNotifier {
     if (notification.depth != 0 || notification.metrics.axis != Axis.vertical) {
       return false;
     }
+    if (!_hasScrollableContent(notification.metrics)) {
+      expand();
+      return false;
+    }
     if (_pinnedBySmallTopAppBar) {
       // A compact bar keeps heightOffset at zero, but the same connection must
       // retain contentOffset so a later large bar knows whether its compact
@@ -431,6 +445,19 @@ class MiuixTopAppBarScrollBehavior extends ChangeNotifier {
       _settle(notification.dragDetails?.primaryVelocity ?? 0);
     }
     return false;
+  }
+
+  bool _hasScrollableContent(ScrollMetrics metrics) {
+    final measured = metrics.maxScrollExtent - metrics.minScrollExtent > .5;
+    // Collapsing the title also removes its leading content inset. A page that
+    // was just barely taller than the viewport can therefore report a zero
+    // range midway through the same gesture. Retain the authoritative range
+    // measured while expanded so the bar does not oscillate; it is measured
+    // again as soon as the title returns to its expanded endpoint.
+    if (measured || _collapseFraction <= .0001) {
+      _contentScrollable = measured;
+    }
+    return measured || (_contentScrollable ?? false);
   }
 
   double _consumeCollapse(double amount) {
@@ -1124,6 +1151,10 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
               ? hyperOs4.appBarTintOpacity
               : hyperOs4.progressiveAppBarTintOpacity,
           color: color ?? scheme.surface,
+          // The material belongs to the title surface only. Bottom content is
+          // laid out by the same app bar for source parity, but must remain as
+          // clear as the page body below it.
+          materialHeight: MediaQuery.paddingOf(context).top + height,
           child: content,
         );
       }
@@ -1187,17 +1218,18 @@ class MiuixSmallTopAppBar extends MiuixTopAppBar {
 
 /// Continuous gradient-glass surface used by HyperOS top bars.
 ///
-/// Android Impeller can lose the real page backdrop when a [ShaderMask] or an
-/// opacity saveLayer wraps [BackdropFilter]. The bar therefore keeps one
-/// directly composited engine blur and paints a smooth three-stop semantic
-/// tint gradient inside it. This produces the intended top-to-bottom material
-/// fade without transparent title regions or horizontal slice seams.
+/// The blur radius and semantic tint both remain strong around the status and
+/// compact-title rows, then continuously reach zero at the body edge. The
+/// variable-radius runtime filter is used where supported; the shared smooth
+/// multi-level fallback preserves the same profile on other renderers. This
+/// avoids the visible horizontal boundary produced by clipping one uniform
+/// [BackdropFilter] at the exact bottom of the bar.
 ///
 /// Title glyphs, navigation icons, search content, and semantics remain the
 /// second stack layer, so none of them are faded by the material gradient.
 ///
 /// [opacity] represents the independent scroll reveal from `BlurredBar.kt`.
-/// It scales the direct blur sigma and authored tint colors instead of adding
+/// It scales the maximum blur sigma and authored tint colors instead of adding
 /// an outer [Opacity]. A zero-offset explicit progressive bar therefore has no
 /// saveLayer, while a 48dp upward scroll exposes the complete profile. The
 /// default gradient style passes one and stays visible continuously.
@@ -1212,6 +1244,7 @@ class _MiuixProgressiveTopBarGlass extends StatelessWidget {
     required this.blur,
     required this.tintOpacity,
     required this.color,
+    required this.materialHeight,
     required this.child,
   });
 
@@ -1219,6 +1252,7 @@ class _MiuixProgressiveTopBarGlass extends StatelessWidget {
   final double blur;
   final double tintOpacity;
   final Color color;
+  final double materialHeight;
   final Widget child;
 
   @override
@@ -1234,40 +1268,74 @@ class _MiuixProgressiveTopBarGlass extends StatelessWidget {
       tintOpacity,
       theme.glassIntensity,
     );
+    final safeMaterialHeight = materialHeight.isFinite
+        ? math.max(0.0, materialHeight)
+        : 0.0;
+    // These falloff positions are project-calibrated from the HyperOS 4 visual
+    // baseline rather than published Xiaomi tokens. Keeping the first 68% at
+    // full strength protects title legibility; the remaining area feathers the
+    // sampled backdrop into the clear scrolling body without a cutoff line.
+    const blurGradient = MiuixProgressiveBlur(
+      angle: 90,
+      startFraction: .68,
+      endFraction: 1,
+      curve: .8,
+    );
     return Stack(
       key: const ValueKey('top-app-bar-progressive-glass'),
       fit: StackFit.passthrough,
       children: [
         if (reveal > 0)
-          Positioned.fill(
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: safeMaterialHeight,
+            // BackdropFilter uses the nearest ancestor clip as its actual
+            // compositing domain. A positioned size alone is insufficient on
+            // every Impeller backend and can still process the scaffold body.
             child: ClipRect(
-              child: BackdropFilter(
+              key: const ValueKey('top-app-bar-title-material-clip'),
+              child: MiuixProgressiveLayerBackdrop(
                 key: const ValueKey('top-app-bar-gradient-filter'),
-                blendMode: BlendMode.srcOver,
-                filter: ui.ImageFilter.blur(
-                  sigmaX: effectiveBlur * reveal,
-                  sigmaY: effectiveBlur * reveal,
-                ),
-                child: DecoratedBox(
-                  key: const ValueKey('top-app-bar-gradient-tint'),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        color.withValues(
-                          alpha: color.a * effectiveTint * reveal,
-                        ),
-                        color.withValues(
-                          alpha: color.a * effectiveTint * .58 * reveal,
-                        ),
-                        color.withValues(
-                          alpha: color.a * effectiveTint * .22 * reveal,
-                        ),
-                      ],
-                      stops: const [0, .56, 1],
-                    ),
+                // MiuixBackdrop converts its source-radius input to sigma using
+                // 0.45. Inverting that documented conversion preserves the
+                // existing top-bar maximum while changing only its falloff.
+                backdrop: MiuixBackdrop(
+                  blur: effectiveBlur * reveal / .45,
+                  colors: const MiuixBlurColors(
+                    tint: Colors.transparent,
+                    opacity: 0,
                   ),
+                ),
+                gradient: blurGradient,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        if (reveal > 0)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: safeMaterialHeight,
+            child: DecoratedBox(
+              key: const ValueKey('top-app-bar-gradient-tint'),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    color.withValues(alpha: color.a * effectiveTint * reveal),
+                    color.withValues(
+                      alpha: color.a * effectiveTint * .72 * reveal,
+                    ),
+                    color.withValues(
+                      alpha: color.a * effectiveTint * .20 * reveal,
+                    ),
+                    color.withValues(alpha: 0),
+                  ],
+                  stops: const [0, .62, .84, 1],
                 ),
               ),
             ),
@@ -1376,14 +1444,16 @@ class _MiuixTopBarActions extends StatelessWidget {
   final EdgeInsets targetInsets;
   final MiuixTopAppBarActionStyle style;
 
-  static const double _circleSize = 48;
+  static const double _circleSize = 44;
+  static const double _targetSize = 48;
   static const double _circleGap = 8;
+  static const double _targetGap = _circleGap - (_targetSize - _circleSize);
 
   static double widthFor(int count, MiuixTopAppBarActionStyle style) {
     if (count <= 0) return 0;
     return switch (style) {
       MiuixTopAppBarActionStyle.glass =>
-        count * _circleSize + (count - 1) * _circleGap,
+        count * _targetSize + (count - 1) * _targetGap,
       MiuixTopAppBarActionStyle.plain => count * 40 + 8,
     };
   }
@@ -1397,28 +1467,45 @@ class _MiuixTopBarActions extends StatelessWidget {
       return SizedBox(
         key: const ValueKey('top-app-bar-glass-actions'),
         width: widthFor(children.length, style),
-        height: _circleSize,
+        height: _targetSize,
         child: Row(
-          spacing: _circleGap,
+          spacing: _targetGap,
           children: [
             for (var index = 0; index < children.length; index++)
               SizedBox.square(
-                dimension: _circleSize,
-                child: MiuixGlass(
-                  key: ValueKey('top-app-bar-glass-action-$index'),
-                  blur: MiuixTheme.of(context).hyperOs4.appBarBlur,
-                  opacity: MiuixTheme.of(context).hyperOs4.appBarTintOpacity,
-                  color: scheme.surfaceContainer,
-                  shape: const CircleBorder(),
-                  padding: EdgeInsets.zero,
-                  optics: MiuixGlassOptics.navigation,
-                  child: Center(
-                    child: _MiuixIconButtonTargetOffset(
-                      offset: targetOffset,
-                      insets: targetInsets,
-                      child: children[index],
+                dimension: _targetSize,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IgnorePointer(
+                      child: SizedBox.square(
+                        dimension: _circleSize,
+                        child: MiuixGlass(
+                          key: ValueKey('top-app-bar-glass-action-$index'),
+                          blur: MiuixTheme.of(context).hyperOs4.appBarBlur,
+                          opacity: MiuixTheme.of(
+                            context,
+                          ).hyperOs4.appBarTintOpacity,
+                          color: scheme.surfaceContainer,
+                          shape: const CircleBorder(),
+                          padding: EdgeInsets.zero,
+                          optics: MiuixGlassOptics.navigation,
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
                     ),
-                  ),
+                    _MiuixIconButtonGlassContext(
+                      selectedBackgroundColor: scheme.primary.withValues(
+                        alpha: .14,
+                      ),
+                      selectedContentColor: scheme.primary,
+                      child: _MiuixIconButtonTargetOffset(
+                        offset: targetOffset,
+                        insets: targetInsets,
+                        child: children[index],
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],

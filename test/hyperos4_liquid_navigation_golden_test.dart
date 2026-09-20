@@ -33,7 +33,7 @@ void main() {
           of: find.byType(MiuixIosLiquidGlassNavigationBar),
           matching: find.byType(BackdropFilter),
         ),
-        findsOneWidget,
+        findsNWidgets(2),
       );
       final panelRect = tester.getRect(
         find.byKey(const ValueKey('ios-liquid-panel')),

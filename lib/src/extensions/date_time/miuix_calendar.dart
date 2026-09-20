@@ -259,7 +259,10 @@ class MiuixCalendarColors {
 /// Geometry and color defaults for calendar extensions.
 abstract final class MiuixCalendarDefaults {
   /// Height and width of one compact day target.
-  static const double dayExtent = 44;
+  ///
+  /// Slightly taller than the original 44 so apps can overlay a lunar
+  /// subtitle without clipping the day number.
+  static const double dayExtent = 56;
 
   /// Continuous corner used by the calendar panel.
   static const double cornerRadius = 24;
@@ -306,6 +309,11 @@ class MiuixCalendar extends StatefulWidget {
     this.cornerRadius,
     this.glassBlur,
     this.glassOpacity,
+    this.dayAdornmentBuilder,
+    this.dayForegroundBuilder,
+    this.dayBackgroundBuilder,
+    this.monthHeaderBuilder,
+    this.hyperOsDayStyles = true,
   });
 
   /// Optional externally owned controller.
@@ -355,6 +363,43 @@ class MiuixCalendar extends StatefulWidget {
   final double? cornerRadius;
   final double? glassBlur;
   final double? glassOpacity;
+
+  /// Optional application-owned badges rendered above the standard day cell.
+  ///
+  /// The returned widget is visual-only and cannot intercept calendar input.
+  final MiuixCalendarDayAdornmentBuilder? dayAdornmentBuilder;
+
+  /// Optional override for the day-number color (weekends, festivals, …).
+  ///
+  /// Returning null keeps the built-in selected / disabled / in-month rules.
+  final Color? Function(
+    DateTime date,
+    bool selected,
+    bool enabled,
+    bool inMonth,
+  )?
+  dayForegroundBuilder;
+
+  /// Optional per-day cell fill (holiday tint, make-up workday gray, …).
+  ///
+  /// Returning null keeps the built-in HyperOS today/selection paints.
+  final Color? Function(
+    DateTime date, {
+    required bool selected,
+    required bool enabled,
+    required bool inMonth,
+    required bool isToday,
+  })?
+  dayBackgroundBuilder;
+
+  /// Optional custom month header (e.g. "9月 · 9天前").
+  final Widget Function(BuildContext context, DateTime month)?
+  monthHeaderBuilder;
+
+  /// HyperOS/Xiaomi day paints: today = solid primary, selected = outline.
+  ///
+  /// When false the calendar keeps the older solid-primary selected circle.
+  final bool hyperOsDayStyles;
 
   @override
   State<MiuixCalendar> createState() => _MiuixCalendarState();
@@ -749,6 +794,14 @@ class _MiuixCalendarState extends State<MiuixCalendar> {
     });
     final firstOffset = (month.weekday - firstWeekday + 7) % 7;
     final gridStart = month.subtract(Duration(days: firstOffset));
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final lastDay = DateTime(month.year, month.month, daysInMonth);
+    final lastOffset = (lastDay.weekday - firstWeekday + 7) % 7;
+    final trailingDays = 6 - lastOffset;
+    final coveredDays = firstOffset + daysInMonth + trailingDays;
+    // Only render weeks that include at least one day of the visible month.
+    // A trailing week that is entirely next month is dropped (Xiaomi calendar).
+    final gridCellCount = ((coveredDays + 6) ~/ 7) * 7;
 
     final content = Column(
       mainAxisSize: MainAxisSize.min,
@@ -770,14 +823,22 @@ class _MiuixCalendarState extends State<MiuixCalendar> {
                         : hyperOs4.pickerStageMotion,
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
-                    child: Text(
-                      localizations.formatMonthYear(month),
+                    child: Builder(
                       key: ValueKey<DateTime>(month),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: colors.foreground,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      builder: (context) {
+                        if (widget.monthHeaderBuilder case final builder?) {
+                          return builder(context, month);
+                        }
+                        return Text(
+                          localizations.formatMonthYear(month),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: colors.foreground,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -819,13 +880,17 @@ class _MiuixCalendarState extends State<MiuixCalendar> {
             crossAxisCount: 7,
             mainAxisExtent: MiuixCalendarDefaults.dayExtent,
           ),
-          itemCount: 42,
+          itemCount: gridCellCount,
           itemBuilder: (context, index) {
             final date = gridStart.add(Duration(days: index));
-            final inMonth = date.month == month.month;
+            final inMonth =
+                date.year == month.year && date.month == month.month;
             final enabled =
                 _isEnabled(date) && (inMonth || widget.showAdjacentMonthDays);
             final selected = _isSelected(date);
+            final isToday =
+                MiuixCalendarController.dateOnly(DateTime.now()) ==
+                MiuixCalendarController.dateOnly(date);
             final rangeInterior = _isRangeInterior(date);
             final range = _controller.state.selectedRange;
             final rangeSelected = range?.contains(date) ?? false;
@@ -845,15 +910,79 @@ class _MiuixCalendarState extends State<MiuixCalendar> {
                     bottomEnd: Radius.circular(22),
                   )
                 : BorderRadius.circular(22);
-            final foreground = !enabled
+            final Color? customDayFill = widget.dayBackgroundBuilder?.call(
+              date,
+              selected: selected,
+              enabled: enabled,
+              inMonth: inMonth,
+              isToday: isToday,
+            );
+            final Color dayFill;
+            final BoxBorder? dayBorder;
+            if (rangeInterior) {
+              dayFill = colors.rangeBackground;
+              dayBorder = null;
+            } else if (!widget.hyperOsDayStyles) {
+              dayFill = selected ? colors.selectedBackground : Colors.transparent;
+              dayBorder = null;
+            } else if (customDayFill != null) {
+              // Holiday / workday cells keep their tint; selection becomes a
+              // primary outline so today's solid chip remains unique.
+              dayFill = customDayFill;
+              dayBorder = selected && !isToday
+                  ? Border.all(color: colors.selectedBackground, width: 1.8)
+                  : null;
+            } else if (isToday) {
+              dayFill = colors.selectedBackground;
+              dayBorder = null;
+            } else if (selected) {
+              dayFill = Colors.transparent;
+              dayBorder = Border.all(color: colors.selectedBackground, width: 1.8);
+            } else {
+              dayFill = Colors.transparent;
+              dayBorder = null;
+            }
+            final builtInForeground = !enabled
                 ? colors.disabledForeground
                 : rangeInterior
                 ? colors.rangeForeground ?? colors.foreground
+                : widget.hyperOsDayStyles
+                ? (isToday || (selected && customDayFill != null && isToday)
+                      ? colors.selectedForeground
+                      : selected
+                      ? colors.selectedBackground
+                      : isToday
+                      ? colors.selectedForeground
+                      : inMonth
+                      ? colors.foreground
+                      : colors.secondaryForeground)
                 : selected
                 ? colors.selectedForeground
                 : inMonth
                 ? colors.foreground
                 : colors.secondaryForeground;
+            // HyperOS: today always reads as white-on-primary; selected
+            // non-today keeps a dark number inside the outline.
+            final hyperOsForeground = widget.hyperOsDayStyles
+                ? (isToday
+                      ? colors.selectedForeground
+                      : selected
+                      ? colors.selectedBackground
+                      : inMonth
+                      ? colors.foreground
+                      : colors.secondaryForeground)
+                : null;
+            final foreground =
+                (enabled && !selected && !isToday
+                    ? widget.dayForegroundBuilder?.call(
+                        date,
+                        selected,
+                        enabled,
+                        inMonth,
+                      )
+                    : null) ??
+                hyperOsForeground ??
+                builtInForeground;
             return Semantics(
               button: true,
               selected: selected,
@@ -884,27 +1013,37 @@ class _MiuixCalendarState extends State<MiuixCalendar> {
                         constraints.maxHeight,
                       ),
                       decoration: BoxDecoration(
-                        // A range interior is also semantically selected, but
-                        // it must not inherit the endpoint fill. Testing the
-                        // interior first keeps the public range color reachable
-                        // while the start and end retain the stronger primary
-                        // circle used by ordinary selected days.
-                        color: rangeInterior
-                            ? colors.rangeBackground
-                            : selected
-                            ? colors.selectedBackground
-                            : Colors.transparent,
+                        color: dayFill,
+                        border: dayBorder,
                         borderRadius: dayRadius,
                       ),
                       alignment: Alignment.center,
-                      child: Text(
-                        widget.showAdjacentMonthDays || inMonth
-                            ? '${date.day}'
-                            : '',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: foreground,
-                          fontWeight: selected ? FontWeight.w600 : null,
-                        ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Center(
+                            child: Text(
+                              widget.showAdjacentMonthDays || inMonth
+                                  ? '${date.day}'
+                                  : '',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: foreground,
+                                    fontWeight:
+                                        (selected || isToday) &&
+                                            widget.hyperOsDayStyles
+                                        ? FontWeight.w700
+                                        : selected
+                                        ? FontWeight.w600
+                                        : null,
+                                  ),
+                            ),
+                          ),
+                          if (widget.dayAdornmentBuilder case final builder?)
+                            IgnorePointer(
+                              child: builder(context, date, selected, enabled),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -1012,3 +1151,13 @@ class _CalendarMonthMoveIntent extends Intent {
 class _CalendarSelectIntent extends Intent {
   const _CalendarSelectIntent();
 }
+
+/// Builds optional content above a calendar day without replacing the MIUIX
+/// selection, motion, semantics, or input behavior of the day cell itself.
+typedef MiuixCalendarDayAdornmentBuilder =
+    Widget? Function(
+      BuildContext context,
+      DateTime date,
+      bool selected,
+      bool enabled,
+    );

@@ -641,6 +641,10 @@ class MiuixDialog extends StatelessWidget {
       return Future<T?>.value();
     }
     final routeTheme = Theme.of(context);
+    // A root-navigator overlay otherwise loses a caller-scoped text scaler.
+    // Preserve that accessibility choice while still reading live root
+    // insets for the keyboard, navigation bar, and window changes.
+    final routeTextScaler = MediaQuery.textScalerOf(context);
     final semantic = MiuixSemanticColors.of(context);
     final size = MediaQuery.sizeOf(context);
     final resolvedLargeScreen =
@@ -679,11 +683,16 @@ class MiuixDialog extends StatelessWidget {
                     requestDismiss();
                   }
                 },
-                child: Theme(
-                  data: routeTheme,
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: Builder(builder: dialogBuilder),
+                child: MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: routeTextScaler),
+                  child: Theme(
+                    data: routeTheme,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Builder(builder: dialogBuilder),
+                    ),
                   ),
                 ),
               ),
@@ -1626,6 +1635,7 @@ class _MiuixBottomSheetSurfaceState extends State<_MiuixBottomSheetSurface>
   // - Its maximum width is 640dp on every platform.
   // - Its maximum height stops at the status-bar-safe top edge.
   // - Default outside margin is zero, so the background reaches the gesture bar.
+  // - Interactive content still ends above the navigation/gesture indicator.
   // - Default horizontal inside margin is 24dp.
   // - Default vertical inside margin is zero.
   // - Only the two top corners use the 28dp source radius.
@@ -1993,7 +2003,8 @@ class _MiuixBottomSheetSurfaceState extends State<_MiuixBottomSheetSurface>
     _schedulePredictiveMeasurement();
     final semantic = MiuixSemanticColors.of(context);
     final hyperOs4 = MiuixTheme.of(context).hyperOs4;
-    final safeTop = MediaQuery.paddingOf(context).top;
+    final media = MediaQuery.of(context);
+    final safeTop = media.padding.top;
     final background =
         widget.backgroundColor ??
         MiuixBottomSheetDefaults.backgroundColor(context);
@@ -2013,7 +2024,15 @@ class _MiuixBottomSheetSurfaceState extends State<_MiuixBottomSheetSurface>
       widget.outsideMargin,
     );
     final imeBottom = widget.defaultWindowInsetsPadding
-        ? MediaQuery.viewInsetsOf(context).bottom
+        ? media.viewInsets.bottom
+        : 0.0;
+    // Keep the sheet material edge-to-edge so it paints behind Android's
+    // gesture indicator, but reserve the currently unobscured system padding
+    // inside that material. `padding.bottom` becomes zero while the IME is
+    // visible, so the outer IME offset and this inner navigation inset are
+    // never added twice.
+    final navigationBottom = widget.defaultWindowInsetsPadding
+        ? media.padding.bottom
         : 0.0;
     // Compose rounds each modifier padding edge before it measures the child.
     // The current Android source's 18sp title4 paragraph is 56 physical pixels
@@ -2086,137 +2105,150 @@ class _MiuixBottomSheetSurfaceState extends State<_MiuixBottomSheetSurface>
                     // HyperOS 4 keeps a restrained edge reflection inside the
                     // panel clip; it must never extend into the rounded cutouts.
                     showSpecular: true,
-                    child: DefaultTextStyle(
-                      style:
-                          (Theme.of(context).textTheme.bodyLarge ??
-                                  const TextStyle(fontSize: 17))
-                              .copyWith(color: semantic['onSurface']),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Listener(
-                            key: const ValueKey(
-                              'miuix-bottom-sheet-drag-handle-area',
-                            ),
-                            behavior: HitTestBehavior.opaque,
-                            onPointerDown: (_) => _setHandlePressed(true),
-                            onPointerUp: (_) => _setHandlePressed(false),
-                            onPointerCancel: (_) => _setHandlePressed(false),
-                            child: GestureDetector(
+                    child: Padding(
+                      key: const ValueKey(
+                        'miuix-bottom-sheet-system-bottom-inset',
+                      ),
+                      padding: EdgeInsets.only(bottom: navigationBottom),
+                      child: DefaultTextStyle(
+                        style:
+                            (Theme.of(context).textTheme.bodyLarge ??
+                                    const TextStyle(fontSize: 17))
+                                .copyWith(color: semantic['onSurface']),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Listener(
+                              key: const ValueKey(
+                                'miuix-bottom-sheet-drag-handle-area',
+                              ),
                               behavior: HitTestBehavior.opaque,
-                              dragStartBehavior: DragStartBehavior.down,
-                              onVerticalDragStart: (_) {
-                                _setHandlePressed(true);
-                                _beginHandleDrag();
-                              },
-                              onVerticalDragUpdate: _dragUpdate,
-                              onVerticalDragEnd: (details) {
-                                _setHandlePressed(false);
-                                _dragEnd(details);
-                              },
-                              onVerticalDragCancel: _cancelHandleDrag,
-                              child: SizedBox(
-                                height: 24,
-                                child: Center(
-                                  child: AnimatedContainer(
-                                    key: const ValueKey(
-                                      'miuix-bottom-sheet-drag-handle',
-                                    ),
-                                    duration: Duration(
-                                      milliseconds: _handlePressed ? 100 : 150,
-                                    ),
-                                    curve: Curves.linear,
-                                    width: _handlePressed ? 55 : 45,
-                                    height: 4,
-                                    transformAlignment: Alignment.center,
-                                    transform: Matrix4.diagonal3Values(
-                                      1,
-                                      _handlePressed ? 1.15 : 1,
-                                      1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: handleColor.withValues(
-                                        alpha: _handlePressed ? .35 : .2,
+                              onPointerDown: (_) => _setHandlePressed(true),
+                              onPointerUp: (_) => _setHandlePressed(false),
+                              onPointerCancel: (_) => _setHandlePressed(false),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                dragStartBehavior: DragStartBehavior.down,
+                                onVerticalDragStart: (_) {
+                                  _setHandlePressed(true);
+                                  _beginHandleDrag();
+                                },
+                                onVerticalDragUpdate: _dragUpdate,
+                                onVerticalDragEnd: (details) {
+                                  _setHandlePressed(false);
+                                  _dragEnd(details);
+                                },
+                                onVerticalDragCancel: _cancelHandleDrag,
+                                child: SizedBox(
+                                  height: 24,
+                                  child: Center(
+                                    child: AnimatedContainer(
+                                      key: const ValueKey(
+                                        'miuix-bottom-sheet-drag-handle',
                                       ),
-                                      borderRadius: BorderRadius.circular(2),
+                                      duration: Duration(
+                                        milliseconds: _handlePressed
+                                            ? 100
+                                            : 150,
+                                      ),
+                                      curve: Curves.linear,
+                                      width: _handlePressed ? 55 : 45,
+                                      height: 4,
+                                      transformAlignment: Alignment.center,
+                                      transform: Matrix4.diagonal3Values(
+                                        1,
+                                        _handlePressed ? 1.15 : 1,
+                                        1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: handleColor.withValues(
+                                          alpha: _handlePressed ? .35 : .2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                          if (widget.title != null ||
-                              widget.startAction != null ||
-                              widget.endAction != null)
-                            Padding(
-                              padding: titlePadding,
-                              // Compose's Box has no authored 40dp height here. It
-                              // measures the tallest title/action placeable, then
-                              // adds the independently rounded 6dp and 12dp edges.
-                              // IntrinsicHeight gives the expanding Stack that same
-                              // child-owned cross-axis size while preserving a
-                              // title centered independently of asymmetric actions.
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minHeight: titleLineHeight,
-                                ),
-                                child: IntrinsicHeight(
-                                  child: SizedBox(
-                                    width: double.infinity,
-                                    child: Stack(
-                                      fit: StackFit.expand,
-                                      alignment: Alignment.center,
-                                      children: [
-                                        if (widget.startAction != null)
-                                          Align(
-                                            alignment: AlignmentDirectional
-                                                .centerStart,
-                                            child: widget.startAction,
-                                          ),
-                                        if (widget.title != null)
-                                          Center(
-                                            child: Text(
-                                              widget.title!,
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                color: semantic['onSurface'],
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w500,
-                                                height: titleLineHeight / 18,
-                                              ),
-                                              strutStyle: StrutStyle(
-                                                fontSize: 18,
-                                                height: titleLineHeight / 18,
-                                                forceStrutHeight: true,
+                            if (widget.title != null ||
+                                widget.startAction != null ||
+                                widget.endAction != null)
+                              Padding(
+                                padding: titlePadding,
+                                // Compose's Box has no authored 40dp height here. It
+                                // measures the tallest title/action placeable, then
+                                // adds the independently rounded 6dp and 12dp edges.
+                                // IntrinsicHeight gives the expanding Stack that same
+                                // child-owned cross-axis size while preserving a
+                                // title centered independently of asymmetric actions.
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: titleLineHeight,
+                                  ),
+                                  child: IntrinsicHeight(
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        alignment: Alignment.center,
+                                        children: [
+                                          if (widget.startAction != null)
+                                            Align(
+                                              alignment: AlignmentDirectional
+                                                  .centerStart,
+                                              child: widget.startAction,
+                                            ),
+                                          if (widget.title != null)
+                                            Center(
+                                              child: Text(
+                                                widget.title!,
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: semantic['onSurface'],
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w500,
+                                                  height: titleLineHeight / 18,
+                                                ),
+                                                strutStyle: StrutStyle(
+                                                  fontSize: 18,
+                                                  height: titleLineHeight / 18,
+                                                  forceStrutHeight: true,
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        if (widget.endAction != null)
-                                          Align(
-                                            alignment:
-                                                AlignmentDirectional.centerEnd,
-                                            child: widget.endAction,
-                                          ),
-                                      ],
+                                          if (widget.endAction != null)
+                                            Align(
+                                              alignment: AlignmentDirectional
+                                                  .centerEnd,
+                                              child: widget.endAction,
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
+                            NotificationListener<ScrollNotification>(
+                              onNotification: _handleNestedScroll,
+                              child: Listener(
+                                behavior: HitTestBehavior.translucent,
+                                onPointerDown: _nestedPointerDown,
+                                onPointerMove: _nestedPointerMove,
+                                onPointerUp: (event) => _finishNestedPointer(
+                                  event,
+                                  cancelled: false,
+                                ),
+                                onPointerCancel: (event) =>
+                                    _finishNestedPointer(
+                                      event,
+                                      cancelled: true,
+                                    ),
+                                child: widget.child,
+                              ),
                             ),
-                          NotificationListener<ScrollNotification>(
-                            onNotification: _handleNestedScroll,
-                            child: Listener(
-                              behavior: HitTestBehavior.translucent,
-                              onPointerDown: _nestedPointerDown,
-                              onPointerMove: _nestedPointerMove,
-                              onPointerUp: (event) =>
-                                  _finishNestedPointer(event, cancelled: false),
-                              onPointerCancel: (event) =>
-                                  _finishNestedPointer(event, cancelled: true),
-                              child: widget.child,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

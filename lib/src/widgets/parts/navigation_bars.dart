@@ -50,6 +50,9 @@ enum MiuixFloatingNavigationBarDisplayMode {
 
   /// Show only a 14sp label.
   textOnly,
+
+  /// Keep icons visible and reveal only the selected item's label.
+  iconWithSelectedLabel,
 }
 
 /// Horizontal placement of a [MiuixFloatingNavigationBar].
@@ -556,6 +559,7 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
     this.displayMode = MiuixFloatingNavigationBarDisplayMode.iconAndText,
     this.alignment = MiuixFloatingNavigationBarAlignment.center,
     this.horizontalOutsidePadding = 20,
+    this.bottomMargin = double.nan,
     this.shadowElevation = MiuixFloatingNavigationBarDefaults.shadowElevation,
     this.showDivider = false,
     this.glass = true,
@@ -567,6 +571,7 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
     this.selectionHorizontalInset = double.nan,
     this.dragEnabled = true,
     this.dragSelectionInset = double.nan,
+    this.selectedIndicatorColor,
   });
 
   /// Destination list.
@@ -597,6 +602,13 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
 
   /// Outside inset applied only on the aligned edge.
   final double horizontalOutsidePadding;
+
+  /// Optional visual gap above the platform safe area or window edge.
+  ///
+  /// The default NaN sentinel resolves through the HyperOS 4 theme token.
+  /// Use a smaller finite value when an application wants the capsule to sit
+  /// closer to Android's gesture handle without changing its touch geometry.
+  final double bottomMargin;
 
   /// Source graphics-layer elevation used to derive the capsule shadow.
   final double shadowElevation;
@@ -637,6 +649,13 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
   /// The default NaN sentinel resolves through the HyperOS 4 theme token.
   final double dragSelectionInset;
 
+  /// Optional selected-item indicator color (legado-style primary selection).
+  ///
+  /// When non-null: the selection pill uses this hue at a soft fill alpha,
+  /// and the selected icon/label tint to this color at full strength. Null
+  /// keeps the HyperOS source gray pill + onSurfaceContainer tint.
+  final Color? selectedIndicatorColor;
+
   @override
   Widget build(BuildContext context) {
     return _MiuixNavigationInsetsBuilder(
@@ -658,9 +677,12 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
     // painted as part of the navigation capsule.
     final systemBottom =
         nativeInsets?.navigationBarBottom ?? mediaPadding.bottom;
+    final effectiveBottomMargin = bottomMargin.isFinite
+        ? math.max(0.0, bottomMargin)
+        : hyperOs4.floatingNavigationBottomMargin;
     final bottomPadding = switch (defaultTargetPlatform) {
-      TargetPlatform.iOS => hyperOs4.floatingNavigationBottomMargin,
-      _ => hyperOs4.floatingNavigationBottomMargin + systemBottom,
+      TargetPlatform.iOS => effectiveBottomMargin,
+      _ => effectiveBottomMargin + systemBottom,
     };
     final captionBottom = defaultWindowInsetsPadding
         ? nativeInsets?.captionBarBottom ?? 0.0
@@ -736,6 +758,7 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
       selectionDuration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : hyperOs4.floatingNavigationMotion,
+      selectedIndicatorColor: selectedIndicatorColor,
     );
     final safeElevation = shadowElevation.isFinite
         ? math.max(0.0, shadowElevation)
@@ -881,6 +904,7 @@ class _MiuixFloatingNavigationContent extends StatefulWidget {
     required this.dragSelectionInset,
     required this.contentSpacing,
     required this.selectionDuration,
+    this.selectedIndicatorColor,
   });
 
   final List<MiuixNavigationItem> items;
@@ -898,6 +922,7 @@ class _MiuixFloatingNavigationContent extends StatefulWidget {
   final double dragSelectionInset;
   final double contentSpacing;
   final Duration selectionDuration;
+  final Color? selectedIndicatorColor;
 
   @override
   State<_MiuixFloatingNavigationContent> createState() =>
@@ -1066,9 +1091,17 @@ class _MiuixFloatingNavigationContentState
     final contentHeight = math.max(surfaceHeight, itemHeight);
     final scheme = Theme.of(context).colorScheme;
     final theme = MiuixTheme.of(context);
-    final indicatorColor = scheme.brightness == Brightness.light
-        ? scheme.surfaceContainerHighest.withValues(alpha: .62)
-        : scheme.onSurface.withValues(alpha: .12);
+    final customIndicator = widget.selectedIndicatorColor;
+    // Soft primary pill + solid primary icon: readable on clear glass without
+    // looking like a loud Material NavigationBar.
+    final indicatorColor = customIndicator == null
+        ? (scheme.brightness == Brightness.light
+              ? scheme.surfaceContainerHighest.withValues(alpha: .62)
+              : scheme.onSurface.withValues(alpha: .12))
+        : customIndicator.withValues(
+            alpha: scheme.brightness == Brightness.light ? .14 : .22,
+          );
+    final selectedTint = customIndicator;
     final contentRow = Positioned.fill(
       child: Row(
         key: const ValueKey('floating-navigation-content-row'),
@@ -1091,6 +1124,7 @@ class _MiuixFloatingNavigationContentState
               itemWidth: itemWidth,
               itemHeight: itemHeight,
               contentSpacing: contentSpacing,
+              indicatorColor: selectedTint,
             ),
           ],
         ],
@@ -1333,6 +1367,7 @@ class _MiuixFloatingNavigationBarItem extends StatefulWidget {
     required this.itemWidth,
     required this.itemHeight,
     required this.contentSpacing,
+    this.indicatorColor,
   });
 
   final bool selected;
@@ -1346,6 +1381,7 @@ class _MiuixFloatingNavigationBarItem extends StatefulWidget {
   final double itemWidth;
   final double itemHeight;
   final double contentSpacing;
+  final Color? indicatorColor;
 
   @override
   State<_MiuixFloatingNavigationBarItem> createState() =>
@@ -1373,19 +1409,26 @@ class _MiuixFloatingNavigationBarItemState
   @override
   Widget build(BuildContext context) {
     final base = MiuixSemanticColors.of(context)['onSurfaceContainer'];
-    // FloatingNavigationBarItem.kt changes only the on-surface alpha. It does
-    // not paint a selected capsule or replace the selected tint with primary.
-    final tint = _pressed
-        ? base.withValues(
-            alpha: widget.selected
-                ? MiuixFloatingNavigationBarDefaults.selectedPressedAlpha
-                : MiuixFloatingNavigationBarDefaults.unselectedPressedAlpha,
-          )
-        : widget.selected
-        ? base
-        : base.withValues(
-            alpha: MiuixFloatingNavigationBarDefaults.unselectedAlpha,
-          );
+    final accent = widget.indicatorColor;
+    // FloatingNavigationBarItem.kt only shifts on-surface alpha. When an
+    // accent is supplied, selected icons/labels switch to that hue so the
+    // soft pill and the glyph read as one selection system.
+    final Color tint;
+    if (!widget.selected) {
+      tint = base.withValues(
+        alpha: _pressed
+            ? MiuixFloatingNavigationBarDefaults.unselectedPressedAlpha
+            : MiuixFloatingNavigationBarDefaults.unselectedAlpha,
+      );
+    } else if (accent != null) {
+      tint = accent;
+    } else {
+      tint = _pressed
+          ? base.withValues(
+              alpha: MiuixFloatingNavigationBarDefaults.selectedPressedAlpha,
+            )
+          : base;
+    }
     return Semantics(
       button: true,
       selected: widget.selected,
@@ -1488,57 +1531,58 @@ class _MiuixFloatingNavigationBarItemState
       );
     }
 
+    Widget iconOnlyContent() => Padding(
+      padding: EdgeInsets.all(iconOnlyPadding),
+      child: navigationIcon(
+        iconOnlySize,
+        iconTop: (widget.itemHeight - iconOnlySize) / 2,
+      ),
+    );
+
+    Widget iconAndTextContent() => Builder(
+      builder: (context) {
+        final labelHeight = _miuixRoundLogicalDimension(12 * 1.16, pixelRatio);
+        final contentHeight =
+            iconTextSize + widget.contentSpacing + labelHeight;
+        final contentTop = (widget.itemHeight - contentHeight) / 2;
+        return SizedBox(
+          key: const ValueKey('floating-navigation-vertical-content'),
+          width: math.max(0, widget.itemWidth - 8),
+          height: contentHeight,
+          // HyperOS 4 combined destinations place the label below the icon.
+          // Both nodes stay centered so localization cannot shift an item.
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              navigationIcon(iconTextSize, iconTop: contentTop),
+              SizedBox(
+                key: const ValueKey('floating-navigation-content-spacing'),
+                height: widget.contentSpacing,
+              ),
+              SizedBox(
+                width: math.max(0, widget.itemWidth - 8),
+                height: labelHeight,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: stableLabel(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
     return SizedBox(
       width: widget.itemWidth,
       height: widget.itemHeight,
       child: Center(
         child: switch (widget.displayMode) {
-          MiuixFloatingNavigationBarDisplayMode.iconOnly => Padding(
-            padding: EdgeInsets.all(iconOnlyPadding),
-            child: navigationIcon(
-              iconOnlySize,
-              iconTop: (widget.itemHeight - iconOnlySize) / 2,
-            ),
-          ),
-          MiuixFloatingNavigationBarDisplayMode.iconAndText => Builder(
-            builder: (context) {
-              final labelHeight = _miuixRoundLogicalDimension(
-                12 * 1.16,
-                pixelRatio,
-              );
-              final contentHeight =
-                  iconTextSize + widget.contentSpacing + labelHeight;
-              final contentTop = (widget.itemHeight - contentHeight) / 2;
-              return SizedBox(
-                key: const ValueKey('floating-navigation-vertical-content'),
-                width: math.max(0, widget.itemWidth - 8),
-                height: contentHeight,
-                // HyperOS 4 combined destinations place the label below the
-                // icon. Both nodes remain centered within the equal item, so
-                // localization cannot shift one destination horizontally.
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    navigationIcon(iconTextSize, iconTop: contentTop),
-                    SizedBox(
-                      key: const ValueKey(
-                        'floating-navigation-content-spacing',
-                      ),
-                      height: widget.contentSpacing,
-                    ),
-                    SizedBox(
-                      width: math.max(0, widget.itemWidth - 8),
-                      height: labelHeight,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: stableLabel(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+          MiuixFloatingNavigationBarDisplayMode.iconOnly => iconOnlyContent(),
+          MiuixFloatingNavigationBarDisplayMode.iconAndText =>
+            iconAndTextContent(),
+          MiuixFloatingNavigationBarDisplayMode.iconWithSelectedLabel =>
+            widget.selected ? iconAndTextContent() : iconOnlyContent(),
           MiuixFloatingNavigationBarDisplayMode.textOnly => Padding(
             padding: EdgeInsets.symmetric(
               vertical: textVerticalPadding,

@@ -367,6 +367,7 @@ class _MiuixIconButtonState extends State<MiuixIconButton>
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final miuixTheme = MiuixTheme.of(context);
+    final glassContext = _MiuixIconButtonGlassContext.maybeOf(context);
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
     // Public geometry can originate in persistence or a platform channel.
     // Normalize it before constraints and shape construction in every mode.
@@ -388,19 +389,27 @@ class _MiuixIconButtonState extends State<MiuixIconButton>
       pixelRatio,
     );
     final borderRadius = BorderRadius.circular(safeCornerRadius);
-    final ShapeBorder shape = miuixTheme.enableSquircle
+    final ShapeBorder shape = glassContext != null
+        ? const CircleBorder()
+        : miuixTheme.enableSquircle
         ? MiuixSquircleBorder(borderRadius: borderRadius)
         : RoundedRectangleBorder(borderRadius: borderRadius);
     final background =
         widget.backgroundColor ??
-        (widget.selected ? scheme.primaryContainer : Colors.transparent);
+        (widget.selected
+            ? glassContext?.selectedBackgroundColor ?? scheme.primaryContainer
+            : Colors.transparent);
     final content = widget.child ?? widget.icon ?? const SizedBox.shrink();
     final targetGeometry = _MiuixIconButtonTargetOffset.maybeOf(context);
     // IconButton.kt does not publish a LocalContentColor. Its arbitrary slot
-    // inherits the caller's icon/text locals exactly as supplied. Only the
-    // explicit Flutter compatibility override installs new foreground locals.
+    // normally inherits the caller's icon/text locals exactly as supplied.
+    // A selected compact glass action uses the surrounding app-bar role so
+    // its foreground and translucent selection wash remain coordinated.
+    final effectiveContentColor =
+        widget.contentColor ??
+        (widget.selected ? glassContext?.selectedContentColor : null);
     final Widget resolvedContent;
-    if (widget.contentColor case final foreground?) {
+    if (effectiveContentColor case final foreground?) {
       resolvedContent = IconTheme.merge(
         data: IconThemeData(color: foreground),
         child: DefaultTextStyle.merge(
@@ -415,46 +424,52 @@ class _MiuixIconButtonState extends State<MiuixIconButton>
     // Decoration and indication share the same smooth outline. Keeping the
     // constraints inside that clip reproduces defaultMinSize -> clip ->
     // background -> clickable from the upstream modifier chain.
-    final visualSurface = MiuixSquircleSurface(
-      color: background,
-      borderRadius: borderRadius,
-      enabled: miuixTheme.enableSquircle,
-      child: DecoratedBox(
-        key: const ValueKey('miuix-icon-button-surface'),
-        // Retain the public shape metadata used by inspection/debug tooling.
-        // The outer SDF owns the final fill and clip on supported platforms.
-        decoration: ShapeDecoration(color: background, shape: shape),
-        child: Stack(
-          fit: StackFit.passthrough,
-          children: [
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth: effectiveMinWidth,
-                minHeight: effectiveMinHeight,
-              ),
-              // Width and height factors keep the Box equivalent shrink-wrap
-              // behavior under a Row or Column's loose cross-axis constraint.
-              child: Align(
-                widthFactor: 1,
-                heightFactor: 1,
-                child: resolvedContent,
-              ),
+    final buttonContents = DecoratedBox(
+      key: const ValueKey('miuix-icon-button-surface'),
+      // Retain the public shape metadata used by inspection/debug tooling.
+      // The outer SDF owns the final fill and clip on supported platforms.
+      decoration: ShapeDecoration(color: background, shape: shape),
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: effectiveMinWidth,
+              minHeight: effectiveMinHeight,
             ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: FadeTransition(
-                  key: const ValueKey('miuix-press-indication'),
-                  opacity: _indicationController,
-                  child: ColoredBox(
-                    color: MiuixSemanticColors.of(context)['onBackground'],
-                  ),
+            // Width and height factors keep the Box equivalent shrink-wrap
+            // behavior under a Row or Column's loose cross-axis constraint.
+            child: Align(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: resolvedContent,
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: FadeTransition(
+                key: const ValueKey('miuix-press-indication'),
+                opacity: _indicationController,
+                child: ColoredBox(
+                  color: MiuixSemanticColors.of(context)['onBackground'],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+    // Compact app-bar glass already owns the visible circular material. Clip
+    // selection and indication to that same circle instead of drawing a
+    // smaller squircle inside the glass surface.
+    final Widget visualSurface = glassContext == null
+        ? MiuixSquircleSurface(
+            color: background,
+            borderRadius: borderRadius,
+            enabled: miuixTheme.enableSquircle,
+            child: buttonContents,
+          )
+        : ClipOval(child: buttonContents);
 
     final interactionSurface = MouseRegion(
       onEnter: widget._isInteractive ? (_) => _setHovered(true) : null,
@@ -509,6 +524,27 @@ class _MiuixIconButtonState extends State<MiuixIconButton>
     }
     return button;
   }
+}
+
+/// Supplies the material contract for an icon button embedded in circular
+/// app-bar glass without changing the public icon-button API.
+class _MiuixIconButtonGlassContext extends InheritedWidget {
+  const _MiuixIconButtonGlassContext({
+    required this.selectedBackgroundColor,
+    required this.selectedContentColor,
+    required super.child,
+  });
+
+  final Color selectedBackgroundColor;
+  final Color selectedContentColor;
+
+  static _MiuixIconButtonGlassContext? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<_MiuixIconButtonGlassContext>();
+
+  @override
+  bool updateShouldNotify(_MiuixIconButtonGlassContext oldWidget) =>
+      selectedBackgroundColor != oldWidget.selectedBackgroundColor ||
+      selectedContentColor != oldWidget.selectedContentColor;
 }
 
 /// Widget bridge for the non-layout-affecting Android interaction target.

@@ -6,6 +6,8 @@ analyzer:
     # copied SDK. They are build products, not package source to lint.
     - "**/build/**"
     - "**/.dart_tool/**"
+    - build/**
+    - android/**
   errors:
     public_member_api_docs: ignore
 
