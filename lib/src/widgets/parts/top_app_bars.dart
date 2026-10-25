@@ -655,6 +655,15 @@ class MiuixTopAppBarScrollBehavior extends ChangeNotifier {
   }
 
   void _notifyStateAndListeners() {
+    // 滚动边界随视口尺寸变化时，ScrollEnd/无指针更新可能在布局阶段到达。
+    // 此时同步通知会让 Scaffold 在布局中 setState，产生框架异常和连锁重建。
+    // 内部折叠值已经立即更新；只合并发布通知，不延迟正常手指拖动的状态。
+    // 复用既有帧后通道，读取最新值并遵守 dispose，避免保存一份迟到旧状态。
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      _scheduleListenerNotification();
+      return;
+    }
     _syncHoistedState();
     notifyListeners();
   }
