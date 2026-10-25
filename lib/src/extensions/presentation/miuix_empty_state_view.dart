@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/miuix_semantic_colors.dart';
@@ -224,7 +225,7 @@ class MiuixEmptyStateView extends StatelessWidget {
                 color: palette.icon,
                 size: compact ? 48 : hyperOs4.emptyStateIconSize,
               ),
-              child: icon ?? Icon(MiuixEmptyStateDefaults.icon(type)),
+              child: icon ?? MiuixThemedIcon(MiuixEmptyStateDefaults.icon(type)),
             ),
             SizedBox(height: compact ? 10 : hyperOs4.emptyStateTitleSpacing),
             Text(

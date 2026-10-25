@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../../platform/miuix_haptics.dart';
@@ -330,7 +331,7 @@ class _MiuixRatingState extends State<MiuixRating> {
                         return Stack(
                           fit: StackFit.expand,
                           children: <Widget>[
-                            Icon(
+                            MiuixThemedIcon(
                               Icons.star_border_rounded,
                               size: _itemSize,
                               color: inactiveColor,
@@ -340,7 +341,7 @@ class _MiuixRatingState extends State<MiuixRating> {
                                 fraction: animatedFill,
                                 textDirection: textDirection,
                               ),
-                              child: Icon(
+                              child: MiuixThemedIcon(
                                 Icons.star_rounded,
                                 size: _itemSize,
                                 color: activeColor,

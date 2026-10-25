@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'dart:collection';
 
 import 'package:flutter/material.dart';
@@ -169,12 +170,17 @@ class MiuixDateRangePicker extends StatefulWidget {
       context: context,
       title: title ?? localizations.dateRangePickerHelpText,
       maxWidth: 520,
-      content: MiuixDateRangePicker(
-        controller: controller,
-        minimumDate: minimumDate,
-        maximumDate: maximumDate,
-        selectableDayPredicate: selectableDayPredicate,
-        glass: glass,
+      content: Flexible(
+        fit: FlexFit.loose,
+        child: SingleChildScrollView(
+          child: MiuixDateRangePicker(
+            controller: controller,
+            minimumDate: minimumDate,
+            maximumDate: maximumDate,
+            selectableDayPredicate: selectableDayPredicate,
+            glass: glass,
+          ),
+        ),
       ),
       actions: <Widget>[
         MiuixTextButton(
@@ -509,6 +515,9 @@ class _MiuixDateRangePickerState extends State<MiuixDateRangePicker> {
         const SizedBox(height: 10),
         MiuixCalendar(
           controller: _controller.calendarController,
+          // 区间选择器不显示农历副标题，保留紧凑的日期热区。
+          // Range pickers omit lunar subtitles and retain compact day targets.
+          dayExtent: 44,
           selectionMode: MiuixCalendarSelectionMode.range,
           minimumDate: widget.minimumDate,
           maximumDate: widget.maximumDate,

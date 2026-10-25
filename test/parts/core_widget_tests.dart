@@ -7352,21 +7352,9 @@ void _registerCoreWidgetTests() {
         of: find.byKey(const ValueKey('top-app-bar-progressive-glass')),
         matching: find.byType(BackdropFilter),
       ),
-      findsNWidgets(3),
+      findsNWidgets(17),
     );
-    expect(
-      tester
-          .widget<MiuixProgressiveLayerBackdrop>(
-            find.byKey(const ValueKey('top-app-bar-gradient-filter')),
-          )
-          .gradient,
-      const MiuixProgressiveBlur(
-        angle: 90,
-        startFraction: .68,
-        endFraction: 1,
-        curve: .8,
-      ),
-    );
+    expect(find.byType(ShaderMask), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

@@ -178,12 +178,16 @@ void main() {
     // the range. Both remain selected for accessibility, but their visual
     // hierarchy must use the two independent public color channels.
     BoxDecoration decorationFor(String day) {
-      final animated = find
+      final cell = find
           .ancestor(
             of: find.text(day),
-            matching: find.byType(AnimatedContainer),
+            matching: find.byType(Stack),
           )
           .first;
+      final animated = find.descendant(
+        of: cell,
+        matching: find.byType(AnimatedContainer),
+      );
       return tester.widget<AnimatedContainer>(animated).decoration!
           as BoxDecoration;
     }

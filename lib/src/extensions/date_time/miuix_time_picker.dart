@@ -144,13 +144,18 @@ class MiuixTimePicker extends StatefulWidget {
     return MiuixDialog.show<MiuixTimeValue>(
       context: context,
       title: title ?? localizations.timePickerDialHelpText,
-      content: MiuixTimePicker(
-        controller: controller,
-        use24HourFormat: use24HourFormat,
-        minuteInterval: minuteInterval,
-        secondInterval: secondInterval,
-        showSeconds: showSeconds,
-        glass: glass,
+      content: Flexible(
+        fit: FlexFit.loose,
+        child: SingleChildScrollView(
+          child: MiuixTimePicker(
+            controller: controller,
+            use24HourFormat: use24HourFormat,
+            minuteInterval: minuteInterval,
+            secondInterval: secondInterval,
+            showSeconds: showSeconds,
+            glass: glass,
+          ),
+        ),
       ),
       actions: <Widget>[
         MiuixTextButton(

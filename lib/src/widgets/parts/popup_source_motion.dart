@@ -365,6 +365,7 @@ class _MiuixListPopupPredictiveBackObserverState
     _MiuixPredictiveBackOwnerRegistry.instance.register(
       this,
       (event) => widget.canStart(),
+      context: () => context,
     );
     WidgetsBinding.instance.addObserver(this);
   }
@@ -420,6 +421,11 @@ class _MiuixListPopupPredictiveBackObserverState
 
   @override
   void handleCommitBackGesture() {
+    // 拖动期间出现保护层时只取消，不关闭其后的浮层。
+    if (MiuixBackGestureScope.blockedOf(context)) {
+      handleCancelBackGesture();
+      return;
+    }
     if (_activeController == null) return;
     _resetAnimation.stop();
     if (_activeCascadingDepth) {
@@ -441,7 +447,7 @@ class _MiuixListPopupPredictiveBackObserverState
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) => _MiuixBackGuard(child: widget.child);
 }
 
 /// Closed-form Folme response used to cancel a depth-one Back preview.

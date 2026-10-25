@@ -209,6 +209,14 @@ class _MiuixIconButtonState extends State<MiuixIconButton>
     }
   }
 
+  int _iconActivation = 0;
+
+  void _activate() {
+    if (!widget._isInteractive) return;
+    setState(() => _iconActivation++);
+    widget.onPressed?.call();
+  }
+
   void _setPointerPressed(bool value) {
     if (_pointerPressed == value || !mounted) {
       return;
@@ -442,7 +450,13 @@ class _MiuixIconButtonState extends State<MiuixIconButton>
             child: Align(
               widthFactor: 1,
               heightFactor: 1,
-              child: resolvedContent,
+              child: MiuixIconInteraction(
+                enabled: widget._isInteractive,
+                pressed: _pointerPressed,
+                selected: widget.selected,
+                activation: _iconActivation,
+                child: resolvedContent,
+              ),
             ),
           ),
           Positioned.fill(
@@ -490,7 +504,7 @@ class _MiuixIconButtonState extends State<MiuixIconButton>
             ? <Type, Action<Intent>>{
                 ActivateIntent: CallbackAction<ActivateIntent>(
                   onInvoke: (_) {
-                    widget.onPressed?.call();
+                    _activate();
                     return null;
                   },
                 ),
@@ -513,7 +527,7 @@ class _MiuixIconButtonState extends State<MiuixIconButton>
         MiuixIconButtonDefaults.minimumInteractiveSize,
         pixelRatio,
       ),
-      onTap: widget.onPressed,
+      onTap: widget._isInteractive ? _activate : null,
       onTapDown: () => _setPointerPressed(true),
       onTapUp: () => _setPointerPressed(false),
       onTapCancel: () => _setPointerPressed(false),

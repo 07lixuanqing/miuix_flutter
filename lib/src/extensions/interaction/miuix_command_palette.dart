@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -664,7 +665,7 @@ class _MiuixCommandPaletteState extends State<MiuixCommandPalette> {
                       width: 36,
                       child: IconTheme(
                         data: IconThemeData(color: foreground, size: 22),
-                        child: command.icon ?? const Icon(Icons.bolt_rounded),
+                        child: command.icon ?? const MiuixThemedIcon(Icons.bolt_rounded),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -795,11 +796,11 @@ class _MiuixCommandPaletteState extends State<MiuixCommandPalette> {
                     focusNode: _searchFocus,
                     hint: widget.searchHint,
                     singleLine: true,
-                    leadingIcon: Icon(MiuixExtensionGlyphs.search),
+                    leadingIcon: MiuixThemedIcon(MiuixExtensionGlyphs.search),
                     trailingIcon: _query.text.isEmpty
                         ? null
                         : MiuixIconButton(
-                            icon: Icon(MiuixExtensionGlyphs.close),
+                            icon: MiuixThemedIcon(MiuixExtensionGlyphs.close),
                             tooltip: '清除搜索',
                             onPressed: () {
                               _query.clear();

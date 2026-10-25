@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/miuix_semantic_colors.dart';
@@ -249,7 +250,7 @@ class MiuixTimeline extends StatelessWidget {
                 : Colors.white,
             size: 15,
           ),
-          child: item.icon ?? Icon(defaultIcon),
+          child: item.icon ?? MiuixThemedIcon(defaultIcon),
         ),
       ),
     );

@@ -114,15 +114,20 @@ class MiuixDateTimePicker extends StatefulWidget {
     return MiuixDialog.show<DateTime>(
       context: context,
       title: title ?? localizations.datePickerHelpText,
-      content: MiuixDateTimePicker(
-        controller: controller,
-        minimumDate: minimumDate,
-        maximumDate: maximumDate,
-        datePickerMode: datePickerMode,
-        use24HourFormat: use24HourFormat,
-        minuteInterval: minuteInterval,
-        showSeconds: showSeconds,
-        glass: glass,
+      content: Flexible(
+        fit: FlexFit.loose,
+        child: SingleChildScrollView(
+          child: MiuixDateTimePicker(
+            controller: controller,
+            minimumDate: minimumDate,
+            maximumDate: maximumDate,
+            datePickerMode: datePickerMode,
+            use24HourFormat: use24HourFormat,
+            minuteInterval: minuteInterval,
+            showSeconds: showSeconds,
+            glass: glass,
+          ),
+        ),
       ),
       actions: <Widget>[
         MiuixTextButton(

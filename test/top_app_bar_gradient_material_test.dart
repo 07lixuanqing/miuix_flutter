@@ -22,24 +22,21 @@ void main() {
       await tester.pumpWidget(const _GradientTopBarFrame());
       await tester.pumpAndSettle();
 
-      // Widget tests exercise the smooth three-level fallback. Runtime
-      // renderers with ImageFilter.shader support replace it with the
-      // continuous variable-radius filter.
-      expect(find.byType(ShaderMask), findsNWidgets(3));
+      // Mask saveLayers can leave only tint while the backdrop stays sharp.
+      // Title passes clip the actual backdrop directly on every renderer.
+      expect(find.byType(ShaderMask), findsNothing);
       final gradient = find.byKey(
         const ValueKey('top-app-bar-progressive-glass'),
       );
       expect(gradient, findsOneWidget);
       expect(
         find.descendant(of: gradient, matching: find.byType(BackdropFilter)),
-        findsNWidgets(3),
+        findsNWidgets(17),
       );
-      final blurLayer = tester.widget<MiuixProgressiveLayerBackdrop>(
+      expect(
         find.byKey(const ValueKey('top-app-bar-gradient-filter')),
+        findsOneWidget,
       );
-      expect(blurLayer.gradient.angle, 90);
-      expect(blurLayer.gradient.startFraction, .68);
-      expect(blurLayer.gradient.endFraction, 1);
       final tint = tester.widget<DecoratedBox>(
         find.byKey(const ValueKey('top-app-bar-gradient-tint')),
       );
@@ -85,6 +82,11 @@ void main() {
       contrasts.take(4).every((value) => value < unfilteredBackdrop),
       isTrue,
       reason: 'every title-region band must soften the page behind it',
+    );
+    expect(
+      contrasts[0],
+      lessThan(unfilteredBackdrop * .12),
+      reason: 'tint alone reduces contrast but must not pass as real blur',
     );
     expect(
       contrasts[3],

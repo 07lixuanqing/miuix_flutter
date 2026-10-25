@@ -251,6 +251,8 @@ class _MiuixPriorityHorizontalDragGestureRecognizer
   bool _hasQualifiedMotion = false;
   DragStartDetails? _deferredStartDetails;
   bool _qualifiedStartDelivered = false;
+  // Flutter 会把已接受的 PointerCancel 送进 onEnd，保留分发原因供调用方区分。
+  bool isDispatchingPointerCancel = false;
 
   /// Optional local-space gate for controls with a smaller active thumb.
   bool Function(Offset localPosition)? isStartAllowed;
@@ -292,7 +294,9 @@ class _MiuixPriorityHorizontalDragGestureRecognizer
   void handleEvent(PointerEvent event) {
     if (event case PointerMoveEvent()) {
       final origin = _pointerOrigins[event.pointer];
-      if (origin != null) {
+      // 方向只在开始时判定；横拖已接受后，回到起点附近的纵向抖动不能撤销它。
+      // 保留整段指针流的所有权，直到 UP/CANCEL，再允许下一段选择方向。
+      if (origin != null && !_hasQualifiedMotion) {
         final displacement = event.position - origin;
         final horizontal = displacement.dx.abs();
         final vertical = displacement.dy.abs();
@@ -313,7 +317,13 @@ class _MiuixPriorityHorizontalDragGestureRecognizer
         }
       }
     }
-    super.handleEvent(event);
+    isDispatchingPointerCancel = event is PointerCancelEvent;
+    try {
+      super.handleEvent(event);
+    } finally {
+      // 只在本次分发期间标记，下一条指针事件不能继承取消原因。
+      isDispatchingPointerCancel = false;
+    }
     if (event is PointerUpEvent || event is PointerCancelEvent) {
       _pointerOrigins.remove(event.pointer);
       if (_pointerOrigins.isEmpty) {
@@ -445,6 +455,8 @@ Widget _miuixPriorityHorizontalDrag({
   GestureDragCancelCallback? onCancel,
   bool Function(Offset localPosition)? isStartAllowed,
   bool excludeFromSemantics = false,
+  // 默认保留其他控件既有的结束协议，开关明确选择取消时不提交。
+  bool cancelOnPointerCancel = false,
 }) {
   if (onStart == null &&
       onUpdate == null &&
@@ -483,7 +495,12 @@ Widget _miuixPriorityHorizontalDrag({
                   : (details) {
                       if (recognizer.hasQualifiedMotion) {
                         recognizer.deliverDeferredStart(onStart);
-                        onEnd(details);
+                        if (cancelOnPointerCancel &&
+                            recognizer.isDispatchingPointerCancel) {
+                          onCancel?.call();
+                        } else {
+                          onEnd(details);
+                        }
                       }
                     }
               ..onCancel = onCancel == null
@@ -709,9 +726,11 @@ class _MiuixSwitchState extends State<MiuixSwitch>
   // that it gives during a touch press.
   bool _hovered = false;
 
-  // Drag distance is expressed in the switch's logical coordinate space.
+  // 位移始终限制在两个端点之间，不积压端点外看不见的移动。
+  // 因而同一手势反向时，滑块会立即响应，无需先抵消越界距离。
   double _dragOffset = 0;
-  double _rawDragOffset = 0;
+  // 手指控制期间直接更新位置；弹簧只用于松手、点击和外部状态变化。
+  bool _dragging = false;
 
   // Switch.kt maintains two independent haptic flags for each drag.
   _MiuixSwitchDragHapticTracker? _dragHapticTracker;
@@ -780,18 +799,16 @@ class _MiuixSwitchState extends State<MiuixSwitch>
   @override
   void didUpdateWidget(covariant MiuixSwitch oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // An external value change commits the selection and invalidates any
-    // unfinished local drag displacement.
-    if (oldWidget.value != widget.value && _dragOffset != 0) {
-      setState(() => _dragOffset = 0);
+    // 外部提交或禁用会终止当前手势，剩余 MOVE/UP 不能再提交旧意图。
+    // 生命周期本就会继续 build，无需额外 setState 重建一次。
+    if (oldWidget.value != widget.value || !widget.enabled) {
+      _dragging = false;
+      _dragOffset = 0;
+      _dragHapticTracker = null;
+      _pressed = false;
     }
-    // Disabled controls cannot retain a visual interaction state.
-    if (!widget.enabled && (_pressed || _hovered)) {
-      setState(() {
-        _pressed = false;
-        _hovered = false;
-      });
-    }
+    // 禁用后也清除桌面悬停，避免继续显示放大的滑块。
+    if (!widget.enabled) _hovered = false;
     _syncThumbOffset();
     _syncThumbScale();
   }
@@ -822,7 +839,16 @@ class _MiuixSwitchState extends State<MiuixSwitch>
   }
 
   void _syncThumbOffset() {
-    // Checked state and live drag share the same physical position spring.
+    // 拖动期间在当前输入帧定位，不启动需要逐帧追赶的弹簧。
+    // 值相同也要停止已有动画，避免下一帧仍沿旧方向移动。
+    if (_dragging) {
+      if (_thumbOffsetController.isAnimating ||
+          _thumbOffsetController.value != _thumbOffsetTarget) {
+        _thumbOffsetController.value = _thumbOffsetTarget;
+      }
+      return;
+    }
+    // 松手或点击仍使用原有位置弹簧。
     _springTo(
       _thumbOffsetController,
       _thumbOffsetTarget,
@@ -840,6 +866,8 @@ class _MiuixSwitchState extends State<MiuixSwitch>
   }
 
   void _setPressed(bool value) {
+    // 横拖获胜会取消外层点击识别，但不应取消仍按住的滑块状态。
+    if (!value && _dragging) return;
     // Avoid scheduling redundant spring simulations from duplicate pointer
     // notifications.
     if (_pressed != value) {
@@ -875,31 +903,35 @@ class _MiuixSwitchState extends State<MiuixSwitch>
     if (!widget.enabled) {
       return;
     }
-    // Every new gesture starts from the committed checked endpoint.
+    // 从当前可见位置接手，快速接住尚在回弹的滑块也不会跳回端点。
+    _thumbOffsetController.stop();
+    final visible = _thumbOffsetController.value.clamp(
+      MiuixSwitchDefaults.uncheckedThumbOffset,
+      MiuixSwitchDefaults.checkedThumbOffset,
+    );
+    final origin = widget.value
+        ? MiuixSwitchDefaults.checkedThumbOffset
+        : MiuixSwitchDefaults.uncheckedThumbOffset;
+    // 位移相对于受控值的端点，继续共用松手阈值与触觉判断。
+    _dragging = true;
+    _dragOffset = visible - origin;
     _setPressed(true);
     _dragHapticTracker = _MiuixSwitchDragHapticTracker(widget.value);
-    setState(() {
-      _dragOffset = 0;
-      _rawDragOffset = 0;
-    });
     _syncThumbOffset();
   }
 
   void _updateDrag(DragUpdateDetails details) {
-    if (!widget.enabled) {
+    if (!widget.enabled || !_dragging) {
       return;
     }
-    // MIUIX divides pointer travel by two, giving the compact thumb a less
-    // twitchy physical response than a one-to-one drag.
+    // 手指与滑块使用同一逻辑位移，反向无需等待动画或抵消越界积压。
+    // 这里只更新紧凑滑块的控制器，不为每个 MOVE 重建整个开关。
     final delta = details.primaryDelta ?? details.delta.dx;
-    setState(() {
-      _rawDragOffset += delta / 2;
-      // The thumb may travel only toward the opposite endpoint; this also
-      // prevents it from leaving the 49 dp track.
-      _dragOffset = widget.value
-          ? _rawDragOffset.clamp(-MiuixSwitchDefaults.dragDistance, 0.0)
-          : _rawDragOffset.clamp(0.0, MiuixSwitchDefaults.dragDistance);
-    });
+    final nextOffset = _dragOffset + delta;
+    // 两端仍丢弃超出轨道的位移，连续往返不会留下反向死区。
+    _dragOffset = widget.value
+        ? nextOffset.clamp(-MiuixSwitchDefaults.dragDistance, 0.0)
+        : nextOffset.clamp(0.0, MiuixSwitchDefaults.dragDistance);
     _updateDragEndpointHaptics();
     _syncThumbOffset();
   }
@@ -911,17 +943,22 @@ class _MiuixSwitchState extends State<MiuixSwitch>
     }
   }
 
-  void _endDrag([DragEndDetails? details]) {
-    if (!widget.enabled) {
-      return;
-    }
+  void _endDrag([DragEndDetails? details]) => _finishDrag(commit: true);
+
+  // 系统取消只复位；不能把中断手势当作用户确认切换。
+  void _cancelDrag() => _finishDrag(commit: false);
+
+  void _finishDrag({required bool commit}) {
+    if (!_dragging) return;
     final stoppedOffset = _dragOffset;
     // Half the 21 dp endpoint distance is the upstream commit threshold.
-    final shouldToggle = stoppedOffset.abs() > 10.5;
+    final shouldToggle = commit && widget.enabled && stoppedOffset.abs() > 10.5;
+    final tracker = _dragHapticTracker;
+    _dragHapticTracker = null;
     setState(() {
+      _dragging = false;
       _pressed = false;
       _dragOffset = 0;
-      _rawDragOffset = 0;
     });
     // First return the transient visuals to rest, then notify the owner. The
     // owner-provided value will start the committed endpoint spring.
@@ -933,8 +970,7 @@ class _MiuixSwitchState extends State<MiuixSwitch>
 
     // Source Switch.kt deliberately leaves a one-dp haptic dead band between
     // release roles instead of deriving them from the 10.5 dp commit point.
-    final feedbackValue = _dragHapticTracker?.release(stoppedOffset);
-    _dragHapticTracker = null;
+    final feedbackValue = commit ? tracker?.release(stoppedOffset) : null;
     if (feedbackValue != null) {
       _emitToggleHaptic(feedbackValue);
     }
@@ -993,10 +1029,11 @@ class _MiuixSwitchState extends State<MiuixSwitch>
                   top: 4,
                   child: _miuixPriorityHorizontalDrag(
                     excludeFromSemantics: true,
+                    cancelOnPointerCancel: true,
                     onStart: widget.enabled ? _startDrag : null,
                     onUpdate: widget.enabled ? _updateDrag : null,
                     onEnd: widget.enabled ? _endDrag : null,
-                    onCancel: widget.enabled ? () => _endDrag() : null,
+                    onCancel: widget.enabled ? _cancelDrag : null,
                     child: Transform.scale(
                       // Transform.scale keeps the spring centered on the logical
                       // thumb position just like Compose graphicsLayer.

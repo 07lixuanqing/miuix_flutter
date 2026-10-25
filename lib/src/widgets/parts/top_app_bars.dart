@@ -35,7 +35,9 @@ enum MiuixTopAppBarBlurStyle {
 /// The wrapper therefore works with icon buttons and arbitrary popup triggers
 /// without turning the group into a second competing gesture target.
 enum MiuixTopAppBarActionStyle {
-  /// HyperOS 4 glass actions: every action owns an independent circle.
+  /// Adaptive HyperOS actions: transparent with an expanded title, circular
+  /// glass when the compact title is visible. Expanded actions share the
+  /// title's backdrop instead of sampling it through a second circular layer.
   ///
   /// The compact row already spaces icon centers by 40dp and exposes 48dp
   /// Android semantic targets. The shared material follows those established
@@ -678,6 +680,8 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.leading,
     this.actions,
     this.large = true,
+    // 正文需要完整小标题时显式启用；普通源布局仍采用原紧凑行。
+    this.wrapSmallTitle = false,
     this.scrollBehavior,
     this.collapseFraction,
     this.color,
@@ -701,10 +705,18 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// Compact title and fallback large title.
   final String title;
 
+  /// 小标题空间不足时将完整标题放到图标行下方，保持原操作位置。
+  /// 使用MiuixScaffold的上下文尺寸；默认保留既有单行布局契约。
+  final bool wrapSmallTitle;
+  // 此选项只处理可用空间与字号，不缩短调用方的title字符串。
+  // 两种模式复用原leading/actions实例，交互和弹窗锚点不会替换。
+
   /// Optional text used only by the expanded large-title presentation.
   final String? largeTitle;
 
   /// Optional supporting title shown below the main title.
+  // Retained for source compatibility. Product pages use a single title and
+  // place status or explanatory text in their body instead.
   final String? subtitle;
 
   /// Navigation icon slot.
@@ -746,11 +758,12 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// older scroll-revealed [progressive] treatment explicitly.
   final MiuixTopAppBarBlurStyle blurStyle;
 
-  /// Shape and material shared by the compact action slots.
+  /// Shape and material shared by the top-bar action slots.
   ///
   /// The group keeps the existing 40dp icon-center cadence and 48dp semantic
-  /// targets. Every action resolves to its own 48dp circle, including when
-  /// several actions are present. These values are project-derived
+  /// targets. Expanded titles have transparent actions; compact titles use
+  /// individual circular surfaces without changing target positions or size.
+  /// These values are project-derived
   /// from current Xiaomi application captures rather than official tokens.
   /// The default is [MiuixTopAppBarActionStyle.glass]; choose
   /// [MiuixTopAppBarActionStyle.plain] explicitly for legacy icon-only pages.
@@ -899,8 +912,18 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   double _sourceTitleAreaHeight(BuildContext context) {
     final collapsed = _sourceCollapsedTitleAreaHeight(context);
+    final wrapped = _smallWrappedTitleHeight(context);
+    // 这里先参与Scaffold尺寸查询，绘制阶段不能单独画出更高标题后覆盖正文。
+    if (wrapped != null) {
+      // 只有实际溢出时增加高度，正常字号短标题的既有像素布局保持一致。
+      return math.max(collapsed, smallTopAppBarCenterHeight + wrapped + 8);
+    }
     return large
-        ? ui.lerpDouble(_expandedHeight, collapsed, _fraction)!
+        ? ui.lerpDouble(
+            _expandedHeight + _largeTitleExtra(context),
+            collapsed,
+            _fraction,
+          )!
         : collapsed;
   }
 
@@ -961,9 +984,17 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
         _sourceBottomContentHeight(context),
   );
 
+  /// 返回当前视口与字号下的实际高度，供透明标题栏后方的正文预留空间。
+  /// 普通 preferredSize 无法读取 TextScaler，仅保留原有名义尺寸契约。
+  Size preferredSizeFor(BuildContext context) => _sourcePreferredSize(context);
+
   /// Resolves shared compact-to-large state before Scaffold tightens height.
   double _preparedSourceTitleAreaHeight(BuildContext context) {
-    if (large) scrollBehavior?._attachCollapseExtent(_collapseExtent);
+    if (large) {
+      scrollBehavior?._attachCollapseExtent(
+        _collapseExtent + _largeTitleExtra(context),
+      );
+    }
     return _sourceTitleAreaHeight(context);
   }
 
@@ -972,7 +1003,12 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
     // Flutter Scaffold reads this before building its appBar child. Restore a
     // shared state here as well as in the context-aware MiuixScaffold path so
     // the first large frame receives the correct tight height.
-    if (large) scrollBehavior?._attachCollapseExtent(_collapseExtent);
+    // 无上下文的尺寸查询只恢复大小标题模式，不能覆盖刚测得的缩放行程。
+    // 正文可能在同一帧查询此属性，重置行程会造成每帧重复通知与布局。
+    final behavior = scrollBehavior;
+    if (large && behavior != null) {
+      behavior._attachCollapseExtent(behavior._collapseExtent);
+    }
     return Size.fromHeight(
       _nominalTitleAreaHeight +
           (bottomContent == null
@@ -986,7 +1022,10 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     scrollBehavior?._setReduceMotion(MediaQuery.disableAnimationsOf(context));
     if (large) {
-      scrollBehavior?._attachCollapseExtent(_collapseExtent);
+      // 字号变化后折叠行程与实际展开高度一致，返回按钮保持原触摸位置。
+      scrollBehavior?._attachCollapseExtent(
+        _collapseExtent + _largeTitleExtra(context),
+      );
     } else {
       scrollBehavior?._schedulePinForSmallTopAppBar();
     }
@@ -1031,12 +1070,9 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
     // so the title and its shaped action group share one finite coordinate
     // system in the opaque, Gaussian, and progressive material branches.
     final largeOpacity = large ? (1 - fraction * 3).clamp(0.0, 1.0) : 0.0;
-    final compactStyle = theme.textTheme.titleLarge?.copyWith(
-      color: titleColor ?? scheme.onSurface,
-      fontSize: 20,
-      fontWeight: FontWeight.w500,
-      letterSpacing: 0,
-    );
+    final compactStyle = _compactTitleTextStyle(context);
+    final wrapSmall = _smallWrappedTitleHeight(context) != null;
+    // 与预留尺寸使用同一实际窗口测量，不根据固定手机宽度猜换行。
     final expandedStyle = theme.textTheme.displaySmall?.copyWith(
       color: largeTitleColor ?? titleColor ?? scheme.onSurface,
       fontSize: 32,
@@ -1067,27 +1103,18 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      largeTitle ?? title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: expandedStyle,
-                    ),
+                    Text(largeTitle ?? title, style: expandedStyle),
                     if (supportingText case final text?)
-                      Text(
-                        text,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: supportingStyle,
-                      ),
+                      Text(text, style: supportingStyle),
                   ],
                 ),
               ),
             ),
           Positioned.fill(
             child: _MiuixCompactTopAppBarContent(
-              title: title,
-              subtitle: supportingText,
+              title: wrapSmall ? '' : title,
+              // 下方已完整绘制时不保留一份省略的同名标题，避免语义重复。
+              subtitle: wrapSmall ? null : supportingText,
               leading: leading,
               actions: actions,
               centerHeight: large
@@ -1099,11 +1126,30 @@ class MiuixTopAppBar extends StatelessWidget implements PreferredSizeWidget {
               navigationIconPadding: safeNavigationIconPadding,
               actionIconPadding: safeActionIconPadding,
               actionStyle: actionStyle,
+              showActionSurfaces: compactVisible,
               includeTopSafeArea: true,
               animateTitle: large,
               titleVisible: compactVisible,
             ),
           ),
+          if (wrapSmall)
+            PositionedDirectional(
+              // 图标行仍保持原50dp位置；完整标题只占用新增的下方阅读区。
+              start: safeTitlePadding,
+              end: safeTitlePadding,
+              top: smallTopAppBarCenterHeight,
+              child: Column(
+                // 自然高度对应测量结果，长标题和兼容副标题均可完整换行。
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: compactStyle),
+                  // 新产品只用主标题；此分支保留已有subtitle调用方的完整阅读。
+                  if (supportingText != null)
+                    Text(supportingText, style: supportingStyle),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -1220,9 +1266,8 @@ class MiuixSmallTopAppBar extends MiuixTopAppBar {
 ///
 /// The blur radius and semantic tint both remain strong around the status and
 /// compact-title rows, then continuously reach zero at the body edge. The
-/// variable-radius runtime filter is used where supported; the shared smooth
-/// multi-level fallback preserves the same profile on other renderers. This
-/// avoids the visible horizontal boundary produced by clipping one uniform
+/// directly clipped Gaussian passes preserve that profile across renderers. This
+/// avoids the hard bottom boundary produced by clipping one uniform
 /// [BackdropFilter] at the exact bottom of the bar.
 ///
 /// Title glyphs, navigation icons, search content, and semantics remain the
@@ -1238,6 +1283,66 @@ class MiuixSmallTopAppBar extends MiuixTopAppBar {
 /// page bars. Dedicated liquid-glass components retain their separate rounded
 /// shapes. Page bars deliberately omit the floating-glass optical outline so
 /// the lower edge does not read as a divider beneath the title.
+class _MiuixTitleBackdrop extends StatelessWidget {
+  const _MiuixTitleBackdrop({super.key, required this.sigma});
+  final double sigma;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final height = constraints.maxHeight;
+      if (!height.isFinite || height <= 0 || sigma <= 0) {
+        return const SizedBox.expand();
+      }
+      // A ShaderMask creates an isolated saveLayer; on Skia its backdrop blur
+      // can sample that empty layer instead of the scrolling page. Clip direct
+      // filters into disjoint bands so every pass samples the real backdrop.
+      // Keep the title plateau strong and feather only the final 32%. Bands
+      // are at least one physical pixel and capped to bound compositor cost.
+      final density = MediaQuery.devicePixelRatioOf(context);
+      final steps = (height * .32 * density).ceil().clamp(1, 16);
+      final edges = <double>[
+        0,
+        .68,
+        for (var i = 1; i <= steps; i++) .68 + .32 * i / steps,
+      ];
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          for (var i = 0; i < edges.length - 1; i++)
+            ClipRect(
+              clipper: _MiuixTitleBandClip(edges[i], edges[i + 1]),
+              child: BackdropFilter(
+                blendMode: BlendMode.src,
+                filter: ui.ImageFilter.blur(
+                  sigmaX: sigma * _strength((edges[i] + edges[i + 1]) / 2),
+                  sigmaY: sigma * _strength((edges[i] + edges[i + 1]) / 2),
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+
+  static double _strength(double position) {
+    final t = ((position - .68) / .32).clamp(0.0, 1.0);
+    return 1 - math.pow(t * t * (3 - 2 * t), .8).toDouble();
+  }
+}
+
+class _MiuixTitleBandClip extends CustomClipper<Rect> {
+  const _MiuixTitleBandClip(this.start, this.end);
+  final double start, end;
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, size.height * start, size.width, size.height * end);
+  @override
+  bool shouldReclip(_MiuixTitleBandClip oldClipper) =>
+      start != oldClipper.start || end != oldClipper.end;
+}
+
 class _MiuixProgressiveTopBarGlass extends StatelessWidget {
   const _MiuixProgressiveTopBarGlass({
     required this.opacity,
@@ -1275,12 +1380,6 @@ class _MiuixProgressiveTopBarGlass extends StatelessWidget {
     // baseline rather than published Xiaomi tokens. Keeping the first 68% at
     // full strength protects title legibility; the remaining area feathers the
     // sampled backdrop into the clear scrolling body without a cutoff line.
-    const blurGradient = MiuixProgressiveBlur(
-      angle: 90,
-      startFraction: .68,
-      endFraction: 1,
-      curve: .8,
-    );
     return Stack(
       key: const ValueKey('top-app-bar-progressive-glass'),
       fit: StackFit.passthrough,
@@ -1296,20 +1395,9 @@ class _MiuixProgressiveTopBarGlass extends StatelessWidget {
             // every Impeller backend and can still process the scaffold body.
             child: ClipRect(
               key: const ValueKey('top-app-bar-title-material-clip'),
-              child: MiuixProgressiveLayerBackdrop(
+              child: _MiuixTitleBackdrop(
                 key: const ValueKey('top-app-bar-gradient-filter'),
-                // MiuixBackdrop converts its source-radius input to sigma using
-                // 0.45. Inverting that documented conversion preserves the
-                // existing top-bar maximum while changing only its falloff.
-                backdrop: MiuixBackdrop(
-                  blur: effectiveBlur * reveal / .45,
-                  colors: const MiuixBlurColors(
-                    tint: Colors.transparent,
-                    opacity: 0,
-                  ),
-                ),
-                gradient: blurGradient,
-                child: const SizedBox.expand(),
+                sigma: effectiveBlur * reveal,
               ),
             ),
           ),
@@ -1437,12 +1525,14 @@ class _MiuixTopBarActions extends StatelessWidget {
     required this.targetOffset,
     required this.targetInsets,
     required this.style,
+    required this.showSurfaces,
   });
 
   final List<Widget> children;
   final Offset targetOffset;
   final EdgeInsets targetInsets;
   final MiuixTopAppBarActionStyle style;
+  final bool showSurfaces;
 
   static const double _circleSize = 44;
   static const double _targetSize = 48;
@@ -1477,27 +1567,28 @@ class _MiuixTopBarActions extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    IgnorePointer(
-                      child: SizedBox.square(
-                        dimension: _circleSize,
-                        child: MiuixGlass(
-                          key: ValueKey('top-app-bar-glass-action-$index'),
-                          blur: MiuixTheme.of(context).hyperOs4.appBarBlur,
-                          opacity: MiuixTheme.of(
-                            context,
-                          ).hyperOs4.appBarTintOpacity,
-                          color: scheme.surfaceContainer,
-                          shape: const CircleBorder(),
-                          padding: EdgeInsets.zero,
-                          optics: MiuixGlassOptics.navigation,
-                          child: const SizedBox.expand(),
+                    if (showSurfaces)
+                      IgnorePointer(
+                        child: SizedBox.square(
+                          dimension: _circleSize,
+                          child: MiuixGlass(
+                            key: ValueKey('top-app-bar-glass-action-$index'),
+                            blur: MiuixTheme.of(context).hyperOs4.appBarBlur,
+                            opacity: MiuixTheme.of(
+                              context,
+                            ).hyperOs4.appBarTintOpacity,
+                            color: scheme.surfaceContainer,
+                            shape: const CircleBorder(),
+                            padding: EdgeInsets.zero,
+                            optics: MiuixGlassOptics.navigation,
+                            child: const SizedBox.expand(),
+                          ),
                         ),
                       ),
-                    ),
                     _MiuixIconButtonGlassContext(
-                      selectedBackgroundColor: scheme.primary.withValues(
-                        alpha: .14,
-                      ),
+                      selectedBackgroundColor: showSurfaces
+                          ? scheme.primary.withValues(alpha: .14)
+                          : Colors.transparent,
                       selectedContentColor: scheme.primary,
                       child: _MiuixIconButtonTargetOffset(
                         offset: targetOffset,

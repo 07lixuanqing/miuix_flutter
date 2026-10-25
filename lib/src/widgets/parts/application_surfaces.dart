@@ -256,7 +256,7 @@ class MiuixChip extends StatelessWidget {
                   showIndication: enabled,
                   child: SizedBox.square(
                     dimension: MiuixChipDefaults.deleteTargetSize,
-                    child: Icon(Icons.close, size: 16, color: foreground),
+                    child: MiuixThemedIcon(Icons.close, size: 16, color: foreground),
                   ),
                 ),
               ),
@@ -823,7 +823,7 @@ class MiuixDeviceCard extends StatelessWidget {
     super.key,
     required this.name,
     required this.status,
-    this.icon = const Icon(Icons.devices),
+    this.icon = const MiuixThemedIcon(Icons.devices),
     this.battery,
     this.onTap,
     this.glass = true,
@@ -838,7 +838,7 @@ class MiuixDeviceCard extends StatelessWidget {
     super.key,
     required this.name,
     required this.status,
-    this.icon = const Icon(Icons.devices),
+    this.icon = const MiuixThemedIcon(Icons.devices),
     this.battery,
     this.onTap,
   }) : glass = false,
@@ -1010,7 +1010,7 @@ class MiuixAppListTile extends StatelessWidget {
           ),
           child: IconTheme(
             data: IconThemeData(color: scheme.primary, size: 15),
-            child: icon ?? const Icon(Icons.apps),
+            child: icon ?? const MiuixThemedIcon(Icons.apps),
           ),
         ),
         trailing: trailing,
@@ -1099,7 +1099,7 @@ class MiuixNotificationCard extends StatelessWidget {
                 ),
                 child: IconTheme(
                   data: IconThemeData(color: scheme.primary, size: 15),
-                  child: icon ?? const Icon(Icons.notifications),
+                  child: icon ?? const MiuixThemedIcon(Icons.notifications),
                 ),
               ),
               const SizedBox(width: 9),
@@ -1150,7 +1150,7 @@ class MiuixPermissionCard extends StatelessWidget {
     required this.description,
     required this.onAllow,
     required this.onDeny,
-    this.icon = const Icon(Icons.privacy_tip),
+    this.icon = const MiuixThemedIcon(Icons.privacy_tip),
     this.glass = true,
     this.glassBlur,
     this.glassOpacity,
@@ -1165,7 +1165,7 @@ class MiuixPermissionCard extends StatelessWidget {
     required this.description,
     required this.onAllow,
     required this.onDeny,
-    this.icon = const Icon(Icons.privacy_tip),
+    this.icon = const MiuixThemedIcon(Icons.privacy_tip),
   }) : glass = false,
        glassBlur = null,
        glassOpacity = null,
@@ -1353,7 +1353,7 @@ class MiuixInlineAlert extends StatelessWidget {
   const MiuixInlineAlert({
     super.key,
     required this.message,
-    this.icon = const Icon(Icons.info),
+    this.icon = const MiuixThemedIcon(Icons.info),
     this.severity = MiuixAlertSeverity.info,
     this.title,
     this.action,
@@ -1368,7 +1368,7 @@ class MiuixInlineAlert extends StatelessWidget {
   const MiuixInlineAlert.source({
     super.key,
     required this.message,
-    this.icon = const Icon(Icons.info),
+    this.icon = const MiuixThemedIcon(Icons.info),
     this.severity = MiuixAlertSeverity.info,
     this.title,
     this.action,
@@ -1478,7 +1478,7 @@ class MiuixInlineAlert extends StatelessWidget {
           if (onDismissed != null) ...<Widget>[
             const SizedBox(width: 6),
             MiuixIconButton(
-              icon: const Icon(Icons.close_rounded),
+              icon: const MiuixThemedIcon(Icons.close_rounded),
               tooltip: '关闭',
               minWidth: 32,
               minHeight: 32,
@@ -1628,7 +1628,7 @@ class MiuixBanner extends StatelessWidget {
           if (onDismissed != null) ...<Widget>[
             const SizedBox(width: 8),
             MiuixIconButton(
-              icon: const Icon(Icons.close_rounded),
+              icon: const MiuixThemedIcon(Icons.close_rounded),
               tooltip: '关闭',
               onPressed: () {
                 MiuixHaptics.perform(MiuixHapticType.toggleOff);
@@ -1655,7 +1655,7 @@ class MiuixEmptyState extends StatelessWidget {
     super.key,
     required this.title,
     this.message,
-    this.icon = const Icon(Icons.inbox),
+    this.icon = const MiuixThemedIcon(Icons.inbox),
     this.action,
     this.announce = true,
     this.maximumWidth,
@@ -1668,7 +1668,7 @@ class MiuixEmptyState extends StatelessWidget {
     super.key,
     required this.title,
     this.message,
-    this.icon = const Icon(Icons.inbox, size: 56),
+    this.icon = const MiuixThemedIcon(Icons.inbox, size: 56),
     this.action,
     this.announce = false,
   }) : maximumWidth = null,
@@ -2208,7 +2208,7 @@ class MiuixStepperRow extends StatelessWidget {
                                     size: 18,
                                   )
                                 : resolvedState == MiuixStepperRowState.error
-                                ? Icon(
+                                ? MiuixThemedIcon(
                                     Icons.close,
                                     color: markerForeground,
                                     size: 18,

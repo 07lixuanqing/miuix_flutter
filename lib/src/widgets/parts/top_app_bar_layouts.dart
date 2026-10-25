@@ -117,6 +117,7 @@ class _MiuixCompactTopAppBarContent extends StatelessWidget {
     required this.navigationIconPadding,
     required this.actionIconPadding,
     required this.actionStyle,
+    required this.showActionSurfaces,
     required this.includeTopSafeArea,
     required this.animateTitle,
     required this.titleVisible,
@@ -154,6 +155,9 @@ class _MiuixCompactTopAppBarContent extends StatelessWidget {
 
   /// Material surrounding the compact action row.
   final MiuixTopAppBarActionStyle actionStyle;
+
+  /// Large-title actions share the title backdrop; compact actions have circles.
+  final bool showActionSurfaces;
 
   /// Whether the title surface owns the Android status-bar inset.
   final bool includeTopSafeArea;
@@ -210,7 +214,53 @@ class _MiuixCompactTopAppBarContent extends StatelessWidget {
                 height: 40,
                 child: _MiuixIconButtonTargetOffset(
                   offset: targetOffset,
-                  child: leading!,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      if (showActionSurfaces &&
+                          actionStyle == MiuixTopAppBarActionStyle.glass)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: OverflowBox(
+                              minWidth: 44,
+                              maxWidth: 44,
+                              minHeight: 44,
+                              maxHeight: 44,
+                              child: MiuixGlass(
+                                key: const ValueKey(
+                                  'top-app-bar-glass-leading',
+                                ),
+                                blur: MiuixTheme.of(
+                                  context,
+                                ).hyperOs4.appBarBlur,
+                                opacity: MiuixTheme.of(
+                                  context,
+                                ).hyperOs4.appBarTintOpacity,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainer,
+                                shape: const CircleBorder(),
+                                padding: EdgeInsets.zero,
+                                optics: MiuixGlassOptics.navigation,
+                                child: const SizedBox.expand(),
+                              ),
+                            ),
+                          ),
+                        ),
+                      _MiuixIconButtonGlassContext(
+                        selectedBackgroundColor: showActionSurfaces
+                            ? Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: .14)
+                            : Colors.transparent,
+                        selectedContentColor: Theme.of(
+                          context,
+                        ).colorScheme.primary,
+                        child: leading!,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             Positioned.fill(
@@ -232,6 +282,7 @@ class _MiuixCompactTopAppBarContent extends StatelessWidget {
                   targetOffset: targetOffset,
                   targetInsets: actionTargetInsets,
                   style: actionStyle,
+                  showSurfaces: showActionSurfaces,
                   children: actionWidgets,
                 ),
               ),

@@ -71,14 +71,13 @@
 //
 // Drag projection
 //
-// Every pointer delta is divided by two before source accumulation.
-// Raw drag travel remains unbounded for the duration of one gesture.
-// Unchecked projection clamps raw travel to the inclusive range zero to 21.
-// Checked projection clamps raw travel to the inclusive range minus 21 to zero.
-// Only the clamped projection contributes to the visible thumb endpoint.
-// Small reversal after a large overshoot therefore remains at the endpoint.
-// Raw and visible offsets reset when a new drag begins.
-// Both offsets reset after drag end or external checked-state commitment.
+// 拖动期间按一比一位移直接定位，不通过弹簧追赶手指。
+// 2026-10-25 用户要求跟手并反复往返验证，覆盖旧版半速拖动行为。
+// 关闭状态位移限制在零到 21；开启状态限制在负 21 到零。
+// 到达端点后丢弃越界移动，不保留不可见的待抵消距离。
+// 同一手势反向时立即移动，在任一端点都采用相同规则。
+// 横拖已识别后锁定到本段结束，回到起点附近的纵向抖动不能中断往返。
+// 从当前可见位置接手动画；松手、禁用或外部提交时清理临时位移。
 //
 // Drag commitment
 //
@@ -94,7 +93,8 @@
 // Position uses a spring with damping ratio 0.7.
 // Position spring stiffness is exactly 987.
 // Position retargeting preserves current velocity.
-// Checked state and transient drag share the same physical position channel.
+// 拖动直接写入同一位置通道，松手与点击才恢复位置弹簧。
+// 系统取消不提交；外部值改变或禁用后忽略剩余手势。
 //
 // Thumb scale motion
 //

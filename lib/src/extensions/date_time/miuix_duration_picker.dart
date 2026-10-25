@@ -155,14 +155,19 @@ class MiuixDurationPicker extends StatefulWidget {
     return MiuixDialog.show<Duration>(
       context: context,
       title: title ?? labels.dialogTitle,
-      content: MiuixDurationPicker(
-        controller: controller,
-        maximumDays: maximumDays,
-        showDays: showDays,
-        showHours: showHours,
-        showMinutes: showMinutes,
-        showSeconds: showSeconds,
-        glass: glass,
+      content: Flexible(
+        fit: FlexFit.loose,
+        child: SingleChildScrollView(
+          child: MiuixDurationPicker(
+            controller: controller,
+            maximumDays: maximumDays,
+            showDays: showDays,
+            showHours: showHours,
+            showMinutes: showMinutes,
+            showSeconds: showSeconds,
+            glass: glass,
+          ),
+        ),
       ),
       actions: <Widget>[
         MiuixTextButton(

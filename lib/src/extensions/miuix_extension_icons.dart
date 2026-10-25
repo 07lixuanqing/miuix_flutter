@@ -1,3 +1,4 @@
+import '../icons/miuix_icon_theme.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
@@ -88,7 +89,7 @@ class MiuixExtensionChevron extends StatelessWidget {
       MiuixExtensionChevronDirection.down => math.pi / 2,
       _ => 0.0,
     };
-    final icon = Icon(
+    final icon = MiuixThemedIcon(
       direction == MiuixExtensionChevronDirection.backward
           ? MiuixExtensionGlyphs.chevronBackward
           : MiuixExtensionGlyphs.chevronForward,

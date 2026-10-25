@@ -102,13 +102,18 @@ class MiuixDatePicker extends StatefulWidget {
     return MiuixDialog.show<DateTime>(
       context: context,
       title: title ?? localizations.datePickerHelpText,
-      content: MiuixDatePicker(
-        controller: controller,
-        minimumDate: minimumDate,
-        maximumDate: maximumDate,
-        mode: mode,
-        selectableDayPredicate: selectableDayPredicate,
-        glass: glass,
+      content: Flexible(
+        fit: FlexFit.loose,
+        child: SingleChildScrollView(
+          child: MiuixDatePicker(
+            controller: controller,
+            minimumDate: minimumDate,
+            maximumDate: maximumDate,
+            mode: mode,
+            selectableDayPredicate: selectableDayPredicate,
+            glass: glass,
+          ),
+        ),
       ),
       actions: <Widget>[
         MiuixTextButton(
@@ -366,6 +371,7 @@ class _MiuixDatePickerState extends State<MiuixDatePicker> {
           child: _mode == MiuixDatePickerMode.calendar
               ? MiuixCalendar(
                   key: const ValueKey<String>('calendar'),
+                  dayExtent: 48,
                   controller: _calendarController,
                   minimumDate: _minimum,
                   maximumDate: _maximum,

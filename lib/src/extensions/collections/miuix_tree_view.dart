@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'dart:async';
 import 'dart:collection';
 
@@ -686,13 +687,13 @@ class _MiuixTreeViewState<T extends Object> extends State<MiuixTreeView<T>> {
                                       child: MiuixInfiniteProgressIndicator(),
                                     )
                                   : error != null
-                                  ? Icon(MiuixExtensionGlyphs.refresh)
+                                  ? MiuixThemedIcon(MiuixExtensionGlyphs.refresh)
                                   : expanded
                                   ? const MiuixExtensionChevron(
                                       direction:
                                           MiuixExtensionChevronDirection.down,
                                     )
-                                  : Icon(MiuixExtensionGlyphs.chevronForward),
+                                  : MiuixThemedIcon(MiuixExtensionGlyphs.chevronForward),
                               onPressed: node.enabled && !loading
                                   ? () {
                                       _focusNode.requestFocus();

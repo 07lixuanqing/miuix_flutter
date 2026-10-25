@@ -376,7 +376,7 @@ class _MiuixNavigationRailExpandToggle extends StatelessWidget {
                     contentColor: MiuixSemanticColors.of(
                       context,
                     )['onSurfaceContainer'],
-                    icon: Icon(
+                    icon: MiuixThemedIcon(
                       sidebar?.regular ?? MiuixIcons.basic.sidebar,
                       size: MiuixNavigationRailDefaults.iconSize,
                       semanticLabel: state.isExpanded
@@ -390,7 +390,7 @@ class _MiuixNavigationRailExpandToggle extends StatelessWidget {
                     minWidth: buttonSize,
                     minHeight: buttonSize,
                     contentColor: Theme.of(context).colorScheme.onSurface,
-                    icon: Icon(
+                    icon: MiuixThemedIcon(
                       sidebar?.regular ?? MiuixIcons.basic.sidebar,
                       size: MiuixNavigationRailDefaults.iconSize,
                       semanticLabel: state.isExpanded
@@ -415,6 +415,7 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
     required this.indication,
     required this.onTap,
     required this.onPressedChanged,
+    required this.pressed,
   });
 
   final _MiuixNavigationRailExpandScope info;
@@ -424,6 +425,7 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
   final Animation<double> indication;
   final VoidCallback onTap;
   final ValueChanged<bool> onPressedChanged;
+  final bool pressed;
 
   @override
   Widget build(BuildContext context) {
@@ -660,7 +662,13 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
               onTapDown: item.enabled ? (_) => onPressedChanged(true) : null,
               onTapUp: item.enabled ? (_) => onPressedChanged(false) : null,
               onTapCancel: item.enabled ? () => onPressedChanged(false) : null,
-              child: visual,
+              child: MiuixIconInteraction(
+                navigation: true,
+                enabled: item.enabled,
+                pressed: pressed,
+                selected: selected,
+                child: visual,
+              ),
             );
             return Semantics(
               button: true,

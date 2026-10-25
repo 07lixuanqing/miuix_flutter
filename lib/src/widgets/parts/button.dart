@@ -258,12 +258,12 @@ class MiuixButton extends StatelessWidget {
     this.filled = false,
     this.expand = false,
     this.colors,
-    this.cornerRadius = MiuixButtonDefaults.cornerRadius,
+    double? cornerRadius,
     this.minWidth = MiuixButtonDefaults.minWidth,
     this.minHeight = MiuixButtonDefaults.minHeight,
     this.insideMargin = MiuixButtonDefaults.insideMargin,
     this.showIndication = true,
-  });
+  }) : _cornerRadius = cornerRadius;
 
   /// Creates the explicit MIUIX 1.0.9 geometry for compatibility work.
   const MiuixButton.source({
@@ -276,12 +276,12 @@ class MiuixButton extends StatelessWidget {
     this.filled = false,
     this.expand = false,
     this.colors,
-    this.cornerRadius = MiuixButtonDefaults.legacyCornerRadius,
+    double cornerRadius = MiuixButtonDefaults.legacyCornerRadius,
     this.minWidth = MiuixButtonDefaults.minWidth,
     this.minHeight = MiuixButtonDefaults.legacyMinHeight,
     this.insideMargin = MiuixButtonDefaults.legacyInsideMargin,
     this.showIndication = true,
-  });
+  }) : _cornerRadius = cornerRadius;
 
   /// Compatibility text label.
   final String? label;
@@ -313,7 +313,8 @@ class MiuixButton extends StatelessWidget {
   final MiuixButtonColors? colors;
 
   /// Continuous-corner radius.
-  final double cornerRadius;
+  double get cornerRadius => _cornerRadius ?? MiuixButtonDefaults.cornerRadius;
+  final double? _cornerRadius;
 
   /// Minimum complete button width, including [insideMargin].
   final double minWidth;
@@ -351,7 +352,8 @@ class MiuixButton extends StatelessWidget {
       onPressed: onPressed,
       enabled: effectiveEnabled,
       colors: resolvedColors,
-      cornerRadius: cornerRadius,
+      cornerRadius:
+          _cornerRadius ?? MiuixTheme.of(context).hyperOs4.buttonCornerRadius,
       minWidth: minWidth,
       minHeight: minHeight,
       insideMargin: insideMargin,
@@ -371,13 +373,13 @@ class MiuixTextButton extends StatelessWidget {
     this.icon,
     this.enabled = true,
     this.colors,
-    this.cornerRadius = MiuixButtonDefaults.cornerRadius,
+    double? cornerRadius,
     this.minWidth = MiuixButtonDefaults.minWidth,
     this.minHeight = MiuixButtonDefaults.minHeight,
     this.insideMargin = MiuixButtonDefaults.insideMargin,
     this.textStyle,
     this.showIndication = true,
-  });
+  }) : _cornerRadius = cornerRadius;
 
   /// Creates the explicit MIUIX 1.0.9 text-button geometry.
   const MiuixTextButton.source({
@@ -387,13 +389,13 @@ class MiuixTextButton extends StatelessWidget {
     this.icon,
     this.enabled = true,
     this.colors,
-    this.cornerRadius = MiuixButtonDefaults.legacyCornerRadius,
+    double cornerRadius = MiuixButtonDefaults.legacyCornerRadius,
     this.minWidth = MiuixButtonDefaults.minWidth,
     this.minHeight = MiuixButtonDefaults.legacyMinHeight,
     this.insideMargin = MiuixButtonDefaults.legacyInsideMargin,
     this.textStyle,
     this.showIndication = true,
-  });
+  }) : _cornerRadius = cornerRadius;
 
   /// Source text.
   final String label;
@@ -414,7 +416,8 @@ class MiuixTextButton extends StatelessWidget {
   final MiuixTextButtonColors? colors;
 
   /// Continuous-corner radius.
-  final double cornerRadius;
+  double get cornerRadius => _cornerRadius ?? MiuixButtonDefaults.cornerRadius;
+  final double? _cornerRadius;
 
   /// Minimum complete width.
   final double minWidth;
@@ -459,7 +462,8 @@ class MiuixTextButton extends StatelessWidget {
       onPressed: onPressed,
       enabled: effectiveEnabled,
       colors: buttonColors,
-      cornerRadius: cornerRadius,
+      cornerRadius:
+          _cornerRadius ?? MiuixTheme.of(context).hyperOs4.buttonCornerRadius,
       minWidth: minWidth,
       minHeight: minHeight,
       insideMargin: insideMargin,
@@ -526,9 +530,9 @@ class _MiuixButtonLabelContent extends StatelessWidget {
           child: labelText,
         );
       }
-      // The icon is a Flutter compatibility extension, not part of source
-      // TextButton. Keep that adapter at natural width while the icon-free
-      // source path receives the finite width supplied by the outer Align.
+      // 图标占用自身宽度，文字只使用父按钮剩余的有限宽度。
+      // loose 约束仍保留短标签的自然宽度，长标签则按实际空间换行。
+      // 不能把 Text 当作无界非弹性子项，否则窄屏和大字号会溢出。
       return Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -538,7 +542,7 @@ class _MiuixButtonLabelContent extends StatelessWidget {
             child: icon!,
           ),
           const SizedBox(width: 6),
-          labelText,
+          Flexible(child: labelText),
         ],
       );
     }
@@ -895,7 +899,12 @@ class _MiuixButtonSurfaceState extends State<_MiuixButtonSurface> {
       onTapDown: () => _setOutsidePressed(true),
       onTapUp: () => _setOutsidePressed(false),
       onTapCancel: () => _setOutsidePressed(false),
-      child: pressable,
+      child: MiuixSurfaceTheme.wrapSurface(
+        context,
+        shape,
+        background,
+        pressable,
+      ),
     );
   }
 }

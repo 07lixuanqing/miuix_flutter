@@ -479,6 +479,11 @@ class MiuixPopupHostController extends ChangeNotifier {
   // reverse animation so OverlayDialog and OverlayBottomSheet can release the
   // hold-down state at the same lifecycle point as the Compose PopupHost.
   bool _handleRoutePop() {
+    // 认证保护优先于浮层的兼容返回回调，不能在遮罩后关闭菜单或弹窗。
+    final hostContext = _hostKey.currentContext;
+    if (hostContext != null && MiuixBackGestureScope.blockedOf(hostContext)) {
+      return true;
+    }
     for (final entry in _entries.reversed) {
       if (!entry.enableBackHandler) {
         continue;

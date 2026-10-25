@@ -24,6 +24,9 @@ import 'package:flutter_miuix/flutter_miuix.dart';
 part 'parts/core_widget_tests.dart';
 part 'parts/haptic_tests.dart';
 part 'parts/navigation_input_tests.dart';
+// 按职责拆分测试文件，注册顺序仍由 selection_progress 保持。
+part 'parts/text_field_tests.dart';
+part 'parts/selection_control_tests.dart';
 part 'parts/selection_progress_tests.dart';
 part 'parts/overlay_color_tests.dart';
 

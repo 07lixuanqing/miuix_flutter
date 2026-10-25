@@ -206,7 +206,7 @@ class MiuixIcon extends StatelessWidget {
     final resolvedSize = _safeSize;
     switch (_type) {
       case _MiuixIconArtworkType.iconData:
-        return Icon(
+        return MiuixThemedIcon(
           _icon,
           size: resolvedSize ?? defaultSize,
           color: resolvedTint,

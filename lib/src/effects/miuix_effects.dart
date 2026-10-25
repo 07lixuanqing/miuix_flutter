@@ -1,3 +1,4 @@
+import '../icons/miuix_icon_interaction.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'dart:math' as math;
@@ -2724,7 +2725,7 @@ class _MiuixGlassState extends State<MiuixGlass> {
   bool _lightActive = false;
 
   void _activateLight(PointerEvent event) {
-    if (!widget.interactiveLight) return;
+    if (!mounted || !widget.interactiveLight) return;
     setState(() {
       _lightPosition = event.localPosition;
       _lightActive = true;
@@ -2732,12 +2733,12 @@ class _MiuixGlassState extends State<MiuixGlass> {
   }
 
   void _moveLight(PointerEvent event) {
-    if (!widget.interactiveLight || !_lightActive) return;
+    if (!mounted || !widget.interactiveLight || !_lightActive) return;
     setState(() => _lightPosition = event.localPosition);
   }
 
   void _releaseLight(PointerEvent event) {
-    if (!widget.interactiveLight) return;
+    if (!mounted || !widget.interactiveLight) return;
     setState(() {
       _lightPosition = event.localPosition;
       _lightActive = false;
@@ -2745,7 +2746,7 @@ class _MiuixGlassState extends State<MiuixGlass> {
   }
 
   void _cancelLight(PointerEvent event) {
-    if (!widget.interactiveLight || !_lightActive) return;
+    if (!mounted || !widget.interactiveLight || !_lightActive) return;
     setState(() => _lightActive = false);
   }
 
@@ -2933,7 +2934,7 @@ class _MiuixGlassState extends State<MiuixGlass> {
         child: glassContent,
       ),
     );
-    if (!widget.interactiveLight) return filteredGlass;
+    if (!mounted || !widget.interactiveLight) return filteredGlass;
     return Listener(
       behavior: HitTestBehavior.deferToChild,
       onPointerDown: _activateLight,
@@ -3551,10 +3552,17 @@ class _MiuixPressableState extends State<MiuixPressable>
     );
   }
 
+  int _iconActivation = 0;
+
+  void _activateIcon() {
+    setState(() => _iconActivation++);
+  }
+
   void _handleLongPress() {
     // Compose combinedClickable enables LongPress haptics by default. Dispatch
     // it when the recognizer wins, before invoking the owner's long-click.
     unawaited(MiuixHaptics.perform(MiuixHapticType.longPress));
+    _activateIcon();
     widget.onLongPress?.call();
   }
 
@@ -3601,7 +3609,14 @@ class _MiuixPressableState extends State<MiuixPressable>
     final indicatedChild = Stack(
       fit: StackFit.passthrough,
       children: [
-        widget.child,
+        MiuixIconInteraction(
+          enabled:
+              widget.pointerInputEnabled &&
+              (widget.onTap != null || widget.onLongPress != null),
+          pressed: _pressed || widget.holdDown,
+          activation: _iconActivation,
+          child: widget.child,
+        ),
         if (indicationLayer != null) Positioned.fill(child: indicationLayer),
       ],
     );
@@ -3660,8 +3675,12 @@ class _MiuixPressableState extends State<MiuixPressable>
             widget.showIndication ||
             widget.feedbackOnly ||
             widget.feedbackType != MiuixPressFeedbackType.none);
-    final effectiveTap =
-        widget.onTap ?? (enabled && !widget.feedbackOnly ? () {} : null);
+    final effectiveTap = widget.onTap != null
+        ? () {
+            _activateIcon();
+            widget.onTap!();
+          }
+        : (enabled && !widget.feedbackOnly ? () {} : null);
     final gesture = GestureDetector(
       behavior: HitTestBehavior.opaque,
       // Compose's interactive Card installs an empty click action when only

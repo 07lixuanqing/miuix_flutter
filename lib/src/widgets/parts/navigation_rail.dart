@@ -566,6 +566,7 @@ class _MiuixNavigationRailItemState extends State<_MiuixNavigationRailItem>
         indication: _sourceIndication,
         onTap: widget.onTap,
         onPressedChanged: _setPressed,
+        pressed: _pressed,
       );
     }
     final theme = Theme.of(context);
@@ -624,7 +625,13 @@ class _MiuixNavigationRailItemState extends State<_MiuixNavigationRailItem>
               double.infinity,
             );
       return _miuixNavigationIconWithBadge(
-        icon: iconAnchor,
+        icon: MiuixIconInteraction(
+          navigation: true,
+          enabled: widget.item.enabled,
+          pressed: _pressed,
+          selected: widget.selected,
+          child: iconAnchor,
+        ),
         badge: widget.item.badge,
         sourceBounds: sourceBounds,
       );

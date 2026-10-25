@@ -1510,7 +1510,7 @@ class _MiuixSnackbarSurface extends StatelessWidget {
                   onTapDown: () {},
                   onTapUp: () {},
                   onTapCancel: () {},
-                  child: Icon(
+                  child: MiuixThemedIcon(
                     MiuixIcons.basic.close,
                     size: 20,
                     color: resolvedColors.dismissActionContentColor,

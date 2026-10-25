@@ -449,7 +449,7 @@ class _MiuixSearchBarState extends State<MiuixSearchBar> {
                         end: leadingEnd,
                       ),
                       child: Center(
-                        child: Icon(
+                        child: MiuixThemedIcon(
                           MiuixIcons.basic.search,
                           size: leadingGlyph,
                           color: scheme.onSurfaceVariant,
@@ -601,6 +601,10 @@ class _MiuixSearchCleanupIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolved = MiuixIconTheme.resolveOf(context, MiuixBasicIconCatalog.close);
+    if (resolved != MiuixBasicIconCatalog.close) {
+      return MiuixThemedIcon(resolved, size: size, color: color.withValues(alpha: .6));
+    }
     return SizedBox.square(
       dimension: size,
       child: CustomPaint(painter: _MiuixSearchCleanupPainter(color)),

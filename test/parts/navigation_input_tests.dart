@@ -2906,9 +2906,9 @@ void _registerNavigationInputTests() {
       ),
     );
 
-    final semantic = MiuixSemanticColors.of(
+    final scheme = Theme.of(
       tester.element(find.byType(MiuixFloatingNavigationBar)),
-    );
+    ).colorScheme;
     final selectedIconTheme = tester
         .widgetList<IconTheme>(
           find.ancestor(
@@ -2935,18 +2935,19 @@ void _registerNavigationInputTests() {
     );
 
     expect(selectedIconTheme.data.size, 24);
-    expect(selectedIconTheme.data.color, semantic['onSurfaceContainer']);
+    expect(selectedIconTheme.data.color, isNot(unselectedIconTheme.data.color));
     expect(
-      unselectedIconTheme.data.color,
-      semantic['onSurfaceContainer'].withValues(alpha: .4),
+      HSLColor.fromColor(selectedIconTheme.data.color!).hue,
+      closeTo(HSLColor.fromColor(scheme.primary).hue, 1),
     );
+    expect(unselectedIconTheme.data.color, scheme.onSurfaceVariant);
     expect(
       find.byKey(const ValueKey('floating-navigation-selection-indicator')),
       findsOneWidget,
     );
     expect(surface.radius, 29);
-    expect(surface.blur, 28);
-    expect(surface.opacity, .52);
+    expect(surface.blur, 12);
+    expect(surface.opacity, .38);
     expect(
       find.byKey(const ValueKey('floating-navigation-shadow')),
       findsOneWidget,
@@ -3105,7 +3106,10 @@ void _registerNavigationInputTests() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 140));
 
-    // The direct-manipulation slider is inset another two dp on every edge.
+    // Movement briefly stretches the lens; holding still returns to the inset.
+    expect(tester.getSize(indicator).width, inInclusiveRange(80, 96));
+    expect(tester.getSize(indicator).height, inInclusiveRange(44, 48));
+    await tester.pumpAndSettle();
     expect(tester.getSize(indicator), const Size(80, 48));
     expect(
       tester.getCenter(indicator).dx,
@@ -4993,7 +4997,7 @@ void _registerNavigationInputTests() {
       find.byKey(const ValueKey('top-app-bar-progressive-glass')),
       findsOneWidget,
     );
-    expect(find.byType(ShaderMask), findsNWidgets(3));
+    expect(find.byType(ShaderMask), findsNothing);
     final actionGroup = find.byKey(const ValueKey('top-app-bar-glass-actions'));
     expect(tester.getSize(actionGroup), const Size(100, 48));
     final actionGlass = find.descendant(

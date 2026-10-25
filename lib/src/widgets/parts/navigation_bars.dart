@@ -380,11 +380,17 @@ class _MiuixNavigationBarItemState extends State<_MiuixNavigationBarItem>
                 // 选中指示器铺在内容下层。
                 if (hasIndicator)
                   _indicator(context, itemWidth: constraints.maxWidth),
-                _buildMode(
-                  context,
-                  progress,
-                  tint,
-                  itemWidth: constraints.maxWidth,
+                MiuixIconInteraction(
+                  navigation: true,
+                  enabled: widget.item.enabled,
+                  pressed: _pressed,
+                  selected: widget.selected,
+                  child: _buildMode(
+                    context,
+                    progress,
+                    tint,
+                    itemWidth: constraints.maxWidth,
+                  ),
                 ),
               ],
             ),
@@ -572,6 +578,9 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
     this.dragEnabled = true,
     this.dragSelectionInset = double.nan,
     this.selectedIndicatorColor,
+    this.selectedBackgroundColor,
+    this.unselectedContentColor,
+    this.backgroundOpacity,
   });
 
   /// Destination list.
@@ -653,8 +662,20 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
   ///
   /// When non-null: the selection pill uses this hue at a soft fill alpha,
   /// and the selected icon/label tint to this color at full strength. Null
-  /// keeps the HyperOS source gray pill + onSurfaceContainer tint.
+  /// uses the shared translucent lens and readable theme accent.
   final Color? selectedIndicatorColor;
+
+  /// Independent selection fill, including its alpha. The surrounding glass
+  /// opacity never weakens this layer or the selected foreground tint.
+  final Color? selectedBackgroundColor;
+
+  /// Optional resting icon/label color, independent of the selected tint.
+  final Color? unselectedContentColor;
+
+  /// Optional final glass tint opacity, before multiplying [color]'s alpha.
+  /// Overrides global tint scaling while retaining the global blur strength.
+  /// Use a readable backing over busy content; null keeps the theme recipe.
+  final double? backgroundOpacity;
 
   @override
   Widget build(BuildContext context) {
@@ -675,8 +696,12 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
     // The surface keeps one visual margin above the safe region. The safe
     // region itself remains transparent so Android's gesture bar is never
     // painted as part of the navigation capsule.
-    final systemBottom =
-        nativeInsets?.navigationBarBottom ?? mediaPadding.bottom;
+    // Host safety can include rounded corners or waterfall edges beyond the
+    // system navigation strip. Never replace that larger safe area.
+    final systemBottom = math.max(
+      nativeInsets?.navigationBarBottom ?? 0,
+      mediaPadding.bottom,
+    );
     final effectiveBottomMargin = bottomMargin.isFinite
         ? math.max(0.0, bottomMargin)
         : hyperOs4.floatingNavigationBottomMargin;
@@ -737,13 +762,43 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
     final effectiveCornerRadius = cornerRadius.isFinite
         ? math.max(0.0, cornerRadius)
         : hyperOs4.floatingNavigationCornerRadius;
+    // One material recipe for every caller: the lens is distinct without a
+    // second opaque panel. Hue-preserving contrast avoids gray active labels.
+    final panelColor = color ?? scheme.surface;
+    final panelOpacity =
+        backgroundOpacity ??
+        MiuixGlassOptics.navigation.resolveOpacity(
+          hyperOs4.floatingNavigationTintOpacity,
+          miuixTheme.glassIntensity,
+        );
+    final lensColor =
+        selectedBackgroundColor ??
+        (selectedIndicatorColor == null
+            ? Color.lerp(
+                panelColor,
+                scheme.primary,
+                scheme.brightness == Brightness.dark ? .20 : .28,
+              )!.withValues(
+                alpha: scheme.brightness == Brightness.dark ? .48 : .38,
+              )
+            : selectedIndicatorColor!.withValues(
+                alpha: scheme.brightness == Brightness.dark ? .22 : .14,
+              ));
+    final accentColor =
+        selectedIndicatorColor ??
+        _floatingNavigationAccent(
+          scheme.primary,
+          lensColor,
+          panelColor.withValues(alpha: panelOpacity * panelColor.a),
+          scheme.brightness,
+        );
     final content = _MiuixFloatingNavigationContent(
       items: items,
       selectedIndex: safeSelected,
       // A configuration-driven preview may intentionally omit callbacks.
       // Keep it renderable in release; controlled selection remains fixed and
       // taps become inert until the owner supplies either callback spelling.
-      onSelected: onDestinationSelected ?? onSelected ?? (_) {},
+      onSelected: onDestinationSelected ?? onSelected,
       displayMode: displayMode,
       itemWidth: safeItemWidth,
       itemHeight: safeItemHeight,
@@ -752,13 +807,15 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
       selectionInset: safeSelectionInset,
       selectionHeight: safeSelectionHeight,
       surfaceCornerRadius: effectiveCornerRadius,
-      dragEnabled: dragEnabled,
+      dragEnabled: dragEnabled && (onDestinationSelected ?? onSelected) != null,
       dragSelectionInset: safeDragSelectionInset,
       contentSpacing: hyperOs4.floatingNavigationContentSpacing,
       selectionDuration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : hyperOs4.floatingNavigationMotion,
-      selectedIndicatorColor: selectedIndicatorColor,
+      selectedIndicatorColor: accentColor,
+      selectedBackgroundColor: lensColor,
+      unselectedContentColor: unselectedContentColor ?? scheme.onSurfaceVariant,
     );
     final safeElevation = shadowElevation.isFinite
         ? math.max(0.0, shadowElevation)
@@ -782,9 +839,18 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
           key: const ValueKey('floating-navigation-glass'),
           // HyperOS 4 uses a softer, more translucent floating material. The
           // five-level controller scales this complete calibrated recipe.
-          blur: hyperOs4.floatingNavigationBlur,
-          opacity: hyperOs4.floatingNavigationTintOpacity,
-          color: color ?? scheme.surfaceContainer,
+          blur: backgroundOpacity == null
+              ? hyperOs4.floatingNavigationBlur
+              : MiuixGlassOptics.navigation.resolveBlur(
+                  hyperOs4.floatingNavigationBlur,
+                  miuixTheme.glassIntensity,
+                ),
+          opacity:
+              backgroundOpacity?.clamp(0.0, 1.0) ??
+              hyperOs4.floatingNavigationTintOpacity,
+          useGlobalIntensity: backgroundOpacity == null,
+          enabled: miuixTheme.enableGlass,
+          color: panelColor,
           radius: effectiveCornerRadius,
           padding: EdgeInsets.symmetric(horizontal: sourceHorizontalPadding),
           showSpecular: true,
@@ -887,6 +953,35 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
   }
 }
 
+Color _floatingNavigationAccent(
+  Color accent,
+  Color lens,
+  Color panel,
+  Brightness brightness,
+) {
+  final backgrounds = [
+    Color.alphaBlend(lens, Color.alphaBlend(panel, Colors.black)),
+    Color.alphaBlend(lens, Color.alphaBlend(panel, Colors.white)),
+  ];
+  final hsl = HSLColor.fromColor(accent);
+  final end = brightness == Brightness.dark ? 1.0 : 0.0;
+  for (var step = 0; step <= 100; step++) {
+    final candidate = hsl
+        .withLightness(hsl.lightness + (end - hsl.lightness) * step / 100)
+        .toColor();
+    final foreground = candidate.computeLuminance();
+    if (backgrounds.every((background) {
+      final value = background.computeLuminance();
+      return (math.max(foreground, value) + .05) /
+              (math.min(foreground, value) + .05) >=
+          4.5;
+    })) {
+      return candidate;
+    }
+  }
+  return hsl.withLightness(end).toColor();
+}
+
 class _MiuixFloatingNavigationContent extends StatefulWidget {
   const _MiuixFloatingNavigationContent({
     required this.items,
@@ -905,11 +1000,13 @@ class _MiuixFloatingNavigationContent extends StatefulWidget {
     required this.contentSpacing,
     required this.selectionDuration,
     this.selectedIndicatorColor,
+    this.selectedBackgroundColor,
+    this.unselectedContentColor,
   });
 
   final List<MiuixNavigationItem> items;
   final int selectedIndex;
-  final ValueChanged<int> onSelected;
+  final ValueChanged<int>? onSelected;
   final MiuixFloatingNavigationBarDisplayMode displayMode;
   final double itemWidth;
   final double itemHeight;
@@ -923,6 +1020,8 @@ class _MiuixFloatingNavigationContent extends StatefulWidget {
   final double contentSpacing;
   final Duration selectionDuration;
   final Color? selectedIndicatorColor;
+  final Color? selectedBackgroundColor;
+  final Color? unselectedContentColor;
 
   @override
   State<_MiuixFloatingNavigationContent> createState() =>
@@ -931,15 +1030,25 @@ class _MiuixFloatingNavigationContent extends StatefulWidget {
 
 class _MiuixFloatingNavigationContentState
     extends State<_MiuixFloatingNavigationContent>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _position;
+  late final AnimationController _pickup;
+  late final AnimationController _deformation;
+  Duration? _lastDragTimestamp;
   var _dragging = false;
+  var _held = false;
+  int? _pointer;
+  double _pointerStart = 0;
+  int? _settleTarget;
+  double _pickupOffset = 0;
   var _dragGrabOffset = 0.0;
   var _lastDragIndex = -1;
 
   int get _safeSelected => widget.items.isEmpty
       ? -1
       : widget.selectedIndex.clamp(0, widget.items.length - 1);
+
+  double get _visualPosition => _position.value + _pickupOffset * _pickup.value;
 
   double get _itemPitch => widget.itemWidth + widget.itemSpacing;
 
@@ -950,6 +1059,11 @@ class _MiuixFloatingNavigationContentState
       vsync: this,
       value: math.max(0, _safeSelected).toDouble(),
     );
+    _pickup = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 90),
+    );
+    _deformation = AnimationController.unbounded(vsync: this);
   }
 
   @override
@@ -958,8 +1072,15 @@ class _MiuixFloatingNavigationContentState
     final selected = _safeSelected;
     if (selected < 0) {
       _dragging = false;
+      _held = false;
+      _pointer = null;
       _dragGrabOffset = 0;
       _lastDragIndex = -1;
+      _pickup.stop();
+      _pickup.value = 0;
+      _deformation
+        ..stop()
+        ..value = 0;
       _position
         ..stop()
         ..value = 0;
@@ -978,23 +1099,53 @@ class _MiuixFloatingNavigationContentState
     }
     if (oldWidget.selectedIndex != widget.selectedIndex ||
         oldWidget.items.length != widget.items.length) {
-      _settleTo(selected, velocity: _position.velocity);
+      if (_settleTarget != selected || !_position.isAnimating) {
+        _settleTo(selected, velocity: _position.velocity);
+      }
     }
   }
 
   @override
   void dispose() {
     _position.dispose();
+    _pickup.dispose();
+    _deformation.dispose();
     super.dispose();
   }
 
   SpringDescription get _selectionSpring =>
-      SpringDescription(mass: 1, stiffness: 1000, damping: 2 * math.sqrt(1000));
+      const SpringDescription(mass: 1, stiffness: 430, damping: 32);
+
+  // Only the lens deforms; pointer tracking and destination hit areas stay fixed.
+  void _relaxDeformation({double impulse = 0}) {
+    if (MediaQuery.disableAnimationsOf(context) ||
+        widget.selectionDuration == Duration.zero) {
+      _deformation
+        ..stop()
+        ..value = 0;
+      return;
+    }
+    _deformation.animateWith(
+      SpringSimulation(
+        const SpringDescription(mass: 1, stiffness: 200, damping: 22),
+        _deformation.value.clamp(-.15, 1.0),
+        0,
+        impulse.clamp(0.0, 24.0),
+        tolerance: const Tolerance(distance: .001, velocity: .001),
+      ),
+    );
+  }
 
   void _settleTo(int index, {double velocity = 0}) {
     final target = index.clamp(0, math.max(0, widget.items.length - 1));
+    _settleTarget = target.toInt();
+    final current = _visualPosition;
+    _pickup.stop();
+    _pickup.value = 0;
     _position.stop();
-    if (MediaQuery.disableAnimationsOf(context)) {
+    _position.value = current;
+    if (MediaQuery.disableAnimationsOf(context) ||
+        widget.selectionDuration == Duration.zero) {
       _position.value = target.toDouble();
       return;
     }
@@ -1003,7 +1154,7 @@ class _MiuixFloatingNavigationContentState
         _selectionSpring,
         _position.value,
         target.toDouble(),
-        velocity,
+        velocity.clamp(-10.0, 10.0),
         tolerance: const Tolerance(distance: .001, velocity: .001),
       ),
     );
@@ -1021,21 +1172,40 @@ class _MiuixFloatingNavigationContentState
   }
 
   void _handleDragStart(DragStartDetails details) {
-    if (!widget.dragEnabled || _safeSelected < 0) return;
+    if (!mounted) return;
+    if (!widget.dragEnabled || _safeSelected < 0 || !_held) return;
     _position.stop();
-    _dragGrabOffset =
-        _logicalPositionAt(details.localPosition.dx) - _position.value;
+    // Capture once: a touch on another item joins the finger continuously.
+    // Subsequent pointer samples remain direct, never restarting a spring.
+    final current = _visualPosition;
+    _pickup.stop();
+    final origin = _pointerStart.round().clamp(0, widget.items.length - 1);
+    _dragGrabOffset = _pointerStart - origin;
+    _position.value = origin.toDouble();
+    _pickupOffset = current - origin;
+    _pickup.value = MediaQuery.disableAnimationsOf(context) ? 0 : 1;
+    if (_pickup.value > 0) _pickup.animateTo(0, curve: Curves.easeOutCubic);
     _lastDragIndex = _position.value.round().clamp(0, widget.items.length - 1);
+    _lastDragTimestamp = details.sourceTimeStamp;
     setState(() => _dragging = true);
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
+    if (!mounted) return;
     if (!_dragging || widget.items.isEmpty) return;
     final next =
         (_logicalPositionAt(details.localPosition.dx) - _dragGrabOffset).clamp(
           0.0,
           widget.items.length - 1.0,
         );
+    final elapsed =
+        details.sourceTimeStamp != null && _lastDragTimestamp != null
+        ? (details.sourceTimeStamp! - _lastDragTimestamp!).inMicroseconds /
+              1000000
+        : 1 / 60;
+    final speed = (next - _position.value).abs() / math.max(1 / 120, elapsed);
+    _lastDragTimestamp = details.sourceTimeStamp;
+    _relaxDeformation(impulse: speed * 3);
     _position.value = next;
     final crossed = next.round().clamp(0, widget.items.length - 1);
     if (crossed != _lastDragIndex && widget.items[crossed].enabled) {
@@ -1045,30 +1215,65 @@ class _MiuixFloatingNavigationContentState
   }
 
   void _handleDragEnd(DragEndDetails details) {
+    if (!mounted) return;
     if (!_dragging || widget.items.isEmpty) return;
-    var target = _position.value.round().clamp(0, widget.items.length - 1);
-    if (!widget.items[target].enabled) target = _safeSelected;
     final direction = Directionality.of(context) == TextDirection.ltr ? 1 : -1;
     final velocity = _itemPitch <= 0
         ? 0.0
         : direction * (details.primaryVelocity ?? 0) / _itemPitch;
+    // Commit the nearest actual slot. Velocity affects settlement, never the
+    // destination, so a fast release cannot select a tab outside the finger.
+    var target = _position.value.round().clamp(0, widget.items.length - 1);
+    if (!widget.items[target].enabled) target = _safeSelected;
     setState(() => _dragging = false);
+    _relaxDeformation();
     _settleTo(target, velocity: velocity);
-    if (target != _safeSelected) widget.onSelected(target);
+    if (target != _safeSelected) widget.onSelected?.call(target);
   }
 
   void _handleDragCancel() {
+    if (!mounted) return;
     if (!_dragging) return;
     setState(() => _dragging = false);
+    _relaxDeformation();
     if (_safeSelected >= 0) _settleTo(_safeSelected);
   }
 
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!mounted) return;
+    if (_pointer != null || widget.items.isEmpty || widget.onSelected == null) {
+      return;
+    }
+    final position = _logicalPositionAt(event.localPosition.dx);
+    final index = position.round().clamp(0, widget.items.length - 1);
+    if (!widget.items[index].enabled) return;
+    _pointer = event.pointer;
+    _pointerStart = position;
+    setState(() => _held = true);
+  }
+
+  void _handlePointerUp(PointerEvent event) {
+    if (!mounted) return;
+    if (event.pointer != _pointer) return;
+    _pointer = null;
+    setState(() => _held = false);
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (!mounted) return;
+    if (event.pointer != _pointer) return;
+    _handleDragCancel();
+    _handlePointerUp(event);
+  }
+
   void _handleItemPressed(int index) {
+    if (!mounted) return;
+    if (widget.onSelected == null) return;
     if (index != _safeSelected) {
       unawaited(MiuixHaptics.perform(MiuixHapticType.segmentTick));
     }
-    _settleTo(index);
-    widget.onSelected(index);
+    _settleTo(index, velocity: _position.velocity);
+    widget.onSelected?.call(index);
   }
 
   @override
@@ -1094,15 +1299,17 @@ class _MiuixFloatingNavigationContentState
     final customIndicator = widget.selectedIndicatorColor;
     // Soft primary pill + solid primary icon: readable on clear glass without
     // looking like a loud Material NavigationBar.
-    final indicatorColor = customIndicator == null
-        ? (scheme.brightness == Brightness.light
-              ? scheme.surfaceContainerHighest.withValues(alpha: .62)
-              : scheme.onSurface.withValues(alpha: .12))
-        : customIndicator.withValues(
-            alpha: scheme.brightness == Brightness.light ? .14 : .22,
-          );
+    final indicatorColor =
+        widget.selectedBackgroundColor ??
+        (customIndicator == null
+            ? (scheme.brightness == Brightness.light
+                  ? scheme.surfaceContainerHighest.withValues(alpha: .28)
+                  : scheme.onSurface.withValues(alpha: .12))
+            : customIndicator.withValues(
+                alpha: scheme.brightness == Brightness.light ? .14 : .22,
+              ));
     final selectedTint = customIndicator;
-    final contentRow = Positioned.fill(
+    Widget contentRow(double position, double engagement) => Positioned.fill(
       child: Row(
         key: const ValueKey('floating-navigation-content-row'),
         mainAxisSize: MainAxisSize.min,
@@ -1112,11 +1319,14 @@ class _MiuixFloatingNavigationContentState
             _MiuixFloatingNavigationBarItem(
               key: ValueKey('floating-navigation-item-$index'),
               selected: selectedIndex == index,
+              selectionProgress: items[index].enabled
+                  ? (1 - (position - index).abs()).clamp(0.0, 1.0)
+                  : 0,
+              engagement: engagement,
               enabled: items[index].enabled,
               onPressed: () => _handleItemPressed(index),
-              icon: selectedIndex == index
-                  ? (items[index].selectedIcon ?? items[index].icon)
-                  : items[index].icon,
+              icon: items[index].icon,
+              selectedIcon: items[index].selectedIcon,
               badge: items[index].badge,
               label: items[index].label,
               layoutLabel: items[index].layoutLabel,
@@ -1125,96 +1335,140 @@ class _MiuixFloatingNavigationContentState
               itemHeight: itemHeight,
               contentSpacing: contentSpacing,
               indicatorColor: selectedTint,
+              unselectedColor: widget.unselectedContentColor,
             ),
           ],
         ],
       ),
     );
-    final shrinkDuration = widget.selectionDuration == Duration.zero
+    final shrinkDuration =
+        widget.selectionDuration == Duration.zero ||
+            MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 140);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      dragStartBehavior: DragStartBehavior.down,
-      onHorizontalDragStart: widget.dragEnabled ? _handleDragStart : null,
-      onHorizontalDragUpdate: widget.dragEnabled ? _handleDragUpdate : null,
-      onHorizontalDragEnd: widget.dragEnabled ? _handleDragEnd : null,
-      onHorizontalDragCancel: widget.dragEnabled ? _handleDragCancel : null,
-      child: TweenAnimationBuilder<double>(
-        key: const ValueKey('floating-navigation-drag-size-animation'),
-        tween: Tween<double>(end: _dragging ? widget.dragSelectionInset : 0),
-        duration: shrinkDuration,
-        curve: Curves.easeOutCubic,
-        builder: (context, dragInset, _) {
-          // Direct manipulation uses a smaller slider than the settled state.
-          // Applying one inset to every edge keeps the shrunken outline
-          // concentric instead of scaling it around an imprecise transform.
-          final indicatorWidth = math.max(
-            0.0,
-            itemWidth - selectionInset * 2 - dragInset * 2,
-          );
-          final indicatorHeight = math.max(
-            0.0,
-            selectionHeight.clamp(0.0, contentHeight) - dragInset * 2,
-          );
-          final indicatorTop = (contentHeight - indicatorHeight) / 2;
-          final indicatorRadius = math.min(
-            indicatorHeight / 2,
-            math.max(0.0, surfaceCornerRadius - indicatorTop),
-          );
-          final indicatorShape = theme.enableSquircle
-              ? MiuixSquircleBorder(
-                  borderRadius: BorderRadius.circular(indicatorRadius),
-                  side: BorderSide.none,
-                )
-              : RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(indicatorRadius),
-                  side: BorderSide.none,
+    return Listener(
+      onPointerDown: _handlePointerDown,
+      onPointerUp: _handlePointerUp,
+      onPointerCancel: _handlePointerCancel,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        dragStartBehavior: DragStartBehavior.down,
+        onHorizontalDragStart: widget.dragEnabled ? _handleDragStart : null,
+        onHorizontalDragUpdate: widget.dragEnabled ? _handleDragUpdate : null,
+        onHorizontalDragEnd: widget.dragEnabled ? _handleDragEnd : null,
+        onHorizontalDragCancel: widget.dragEnabled ? _handleDragCancel : null,
+        child: TweenAnimationBuilder<double>(
+          key: const ValueKey('floating-navigation-drag-size-animation'),
+          tween: Tween<double>(
+            end: _dragging || _held ? widget.dragSelectionInset : 0,
+          ),
+          duration: shrinkDuration,
+          curve: Curves.easeOutCubic,
+          builder: (context, dragInset, _) {
+            // Direct manipulation uses a smaller slider than the settled state.
+            // Applying one inset to every edge keeps the shrunken outline
+            // concentric instead of scaling it around an imprecise transform.
+            final indicatorWidth = math.max(
+              0.0,
+              itemWidth - selectionInset * 2 - dragInset * 2,
+            );
+            final indicatorHeight = math.max(
+              0.0,
+              selectionHeight.clamp(0.0, contentHeight) - dragInset * 2,
+            );
+            final indicatorTop = (contentHeight - indicatorHeight) / 2;
+            final indicatorRadius = math.min(
+              indicatorHeight / 2,
+              math.max(0.0, surfaceCornerRadius - indicatorTop),
+            );
+            final indicatorShape = theme.enableSquircle
+                ? MiuixSquircleBorder(
+                    borderRadius: BorderRadius.circular(indicatorRadius),
+                    side: BorderSide.none,
+                  )
+                : RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(indicatorRadius),
+                    side: BorderSide.none,
+                  );
+            return AnimatedBuilder(
+              animation: Listenable.merge([_position, _pickup, _deformation]),
+              builder: (context, _) {
+                // A fast release may briefly overshoot its spring endpoint. The
+                // slider stays inside the first and last destinations while the
+                // controller retains that velocity for visible settlement.
+                final visualPosition = _visualPosition.clamp(
+                  0.0,
+                  math.max(0, itemCount - 1).toDouble(),
                 );
-          return AnimatedBuilder(
-            animation: _position,
-            builder: (context, _) {
-              // A fast release may briefly overshoot its spring endpoint. The
-              // slider stays inside the first and last destinations while the
-              // controller retains that velocity for visible settlement.
-              final visualPosition = _position.value.clamp(
-                0.0,
-                math.max(0, itemCount - 1).toDouble(),
-              );
-              return SizedBox(
-                width: contentWidth,
-                height: contentHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    if (selectedIndex >= 0)
-                      PositionedDirectional(
-                        key: const ValueKey(
-                          'floating-navigation-selection-indicator',
-                        ),
-                        start:
-                            visualPosition * (itemWidth + itemSpacing) +
+                final reducedMotion =
+                    MediaQuery.disableAnimationsOf(context) ||
+                    widget.selectionDuration == Duration.zero;
+                final engagement = widget.dragSelectionInset == 0
+                    ? 0.0
+                    : (dragInset / widget.dragSelectionInset).clamp(0.0, 1.0);
+                final travelStretch = _dragging || !_position.isAnimating
+                    ? 0.0
+                    : (_position.velocity.abs() / 16).clamp(0.0, 1.0);
+                final stretch = reducedMotion
+                    ? 0.0
+                    : math.max(
+                        _deformation.isAnimating
+                            ? _deformation.value.clamp(-.15, 1.0)
+                            : 0.0,
+                        travelStretch,
+                      );
+                // Leave equal room on both sides at the ends of the bar so the
+                // animated lens never pulls away from the pointer or clips.
+                final center = visualPosition * _itemPitch + itemWidth / 2;
+                final availableWidth =
+                    2 * math.min(center, contentWidth - center);
+                final width = math.min(
+                  availableWidth,
+                  indicatorWidth +
+                      math.min(16.0, indicatorWidth * .22) * stretch,
+                );
+                final height = indicatorHeight * (1 - .065 * stretch);
+                final start =
+                    (visualPosition * (itemWidth + itemSpacing) +
                             selectionInset +
-                            dragInset,
-                        top: indicatorTop,
-                        width: indicatorWidth,
-                        height: indicatorHeight,
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: ShapeDecoration(
-                              color: indicatorColor,
-                              shape: indicatorShape,
+                            dragInset -
+                            (width - indicatorWidth) / 2)
+                        .clamp(0.0, math.max(0.0, contentWidth - width));
+                return SizedBox(
+                  width: contentWidth,
+                  height: contentHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      if (selectedIndex >= 0)
+                        PositionedDirectional(
+                          key: const ValueKey(
+                            'floating-navigation-selection-indicator',
+                          ),
+                          start: start.toDouble(),
+                          top: (contentHeight - height) / 2,
+                          width: width.toDouble(),
+                          height: height,
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: ShapeDecoration(
+                                color: indicatorColor,
+                                shape: indicatorShape,
+                              ),
                             ),
                           ),
                         ),
+                      contentRow(
+                        visualPosition,
+                        reducedMotion ? 0 : engagement,
                       ),
-                    contentRow,
-                  ],
-                ),
-              );
-            },
-          );
-        },
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -1282,7 +1536,23 @@ class _MiuixFloatingNavigationShadowPainter extends CustomPainter {
       ),
       blurRadius: MiuixFloatingNavigationBar.sourceShadowRadius,
     ).toPaint();
+    // 透明玻璃不能覆盖实心投影：只保留轮廓外的阴影，避免底色发灰。
+    // Transparent glass exposes a filled shadow, so exclude the capsule
+    // interior before painting the halo. Match the surface's exact path.
+    canvas.save();
+    canvas.clipPath(
+      Path.combine(
+        PathOperation.difference,
+        Path()..addRect(
+          path.getBounds().inflate(
+            MiuixFloatingNavigationBar.sourceShadowRadius * 3,
+          ),
+        ),
+        path,
+      ),
+    );
     canvas.drawPath(path, paint);
+    canvas.restore();
   }
 
   @override
@@ -1357,9 +1627,12 @@ class _MiuixFloatingNavigationBarItem extends StatefulWidget {
   const _MiuixFloatingNavigationBarItem({
     super.key,
     required this.selected,
+    required this.selectionProgress,
+    required this.engagement,
     required this.enabled,
     required this.onPressed,
     required this.icon,
+    this.selectedIcon,
     required this.badge,
     required this.label,
     required this.layoutLabel,
@@ -1368,12 +1641,16 @@ class _MiuixFloatingNavigationBarItem extends StatefulWidget {
     required this.itemHeight,
     required this.contentSpacing,
     this.indicatorColor,
+    this.unselectedColor,
   });
 
   final bool selected;
+  final double selectionProgress;
+  final double engagement;
   final bool enabled;
   final VoidCallback onPressed;
   final Widget icon;
+  final Widget? selectedIcon;
   final Widget? badge;
   final String label;
   final String? layoutLabel;
@@ -1382,6 +1659,7 @@ class _MiuixFloatingNavigationBarItem extends StatefulWidget {
   final double itemHeight;
   final double contentSpacing;
   final Color? indicatorColor;
+  final Color? unselectedColor;
 
   @override
   State<_MiuixFloatingNavigationBarItem> createState() =>
@@ -1410,25 +1688,14 @@ class _MiuixFloatingNavigationBarItemState
   Widget build(BuildContext context) {
     final base = MiuixSemanticColors.of(context)['onSurfaceContainer'];
     final accent = widget.indicatorColor;
-    // FloatingNavigationBarItem.kt only shifts on-surface alpha. When an
-    // accent is supplied, selected icons/labels switch to that hue so the
-    // soft pill and the glyph read as one selection system.
-    final Color tint;
-    if (!widget.selected) {
-      tint = base.withValues(
-        alpha: _pressed
-            ? MiuixFloatingNavigationBarDefaults.unselectedPressedAlpha
-            : MiuixFloatingNavigationBarDefaults.unselectedAlpha,
-      );
-    } else if (accent != null) {
-      tint = accent;
-    } else {
-      tint = _pressed
-          ? base.withValues(
-              alpha: MiuixFloatingNavigationBarDefaults.selectedPressedAlpha,
-            )
-          : base;
-    }
+    // 视觉预览跟随镜片，语义选中状态仍保持已提交页面。
+    // Visual emphasis follows the lens; semantics keep the committed page.
+    final resting =
+        widget.unselectedColor ??
+        base.withValues(
+          alpha: MiuixFloatingNavigationBarDefaults.unselectedAlpha,
+        );
+    final tint = Color.lerp(resting, accent ?? base, widget.selectionProgress)!;
     return Semantics(
       button: true,
       selected: widget.selected,
@@ -1440,13 +1707,31 @@ class _MiuixFloatingNavigationBarItemState
         onTapDown: widget.enabled ? (_) => _setPressed(true) : null,
         onTapUp: widget.enabled ? (_) => _setPressed(false) : null,
         onTapCancel: widget.enabled ? () => _setPressed(false) : null,
-        child: _buildMode(context, tint),
+        child: AnimatedScale(
+          scale: MediaQuery.disableAnimationsOf(context)
+              ? 1
+              : (_pressed ? .97 : 1),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 90),
+          child: MiuixIconInteraction(
+            navigation: true,
+            enabled: widget.enabled,
+            pressed: _pressed,
+            selected: widget.selected,
+            child: _buildMode(context, tint),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildMode(BuildContext context, Color tint) {
-    final selectedWeight = widget.selected ? FontWeight.w700 : FontWeight.w400;
+    final selectedWeight = FontWeight.lerp(
+      FontWeight.w400,
+      FontWeight.w700,
+      widget.selectionProgress,
+    );
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
     Widget stableLabel({required double fontSize}) {
       final style = Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -1467,7 +1752,7 @@ class _MiuixFloatingNavigationBarItemState
         translated: widget.layoutLabel != null,
       );
       final sourceLineHeight = _miuixRoundLogicalDimension(
-        fontSize * 1.16,
+        MediaQuery.textScalerOf(context).scale(fontSize) * 1.16,
         pixelRatio,
       );
       return SizedBox(
@@ -1505,9 +1790,12 @@ class _MiuixFloatingNavigationBarItemState
       required double iconTop,
       double? iconStart,
     }) {
+      final icon = widget.selectionProgress >= .5
+          ? widget.selectedIcon ?? widget.icon
+          : widget.icon;
       final anchor = IconTheme(
         data: IconThemeData(color: tint, size: size),
-        child: SizedBox.square(dimension: size, child: widget.icon),
+        child: SizedBox.square(dimension: size, child: icon),
       );
       // Badge bounds are expressed from the icon's real position inside the
       // complete destination. Combined tabs center their icon horizontally,
@@ -1541,7 +1829,10 @@ class _MiuixFloatingNavigationBarItemState
 
     Widget iconAndTextContent() => Builder(
       builder: (context) {
-        final labelHeight = _miuixRoundLogicalDimension(12 * 1.16, pixelRatio);
+        final labelHeight = _miuixRoundLogicalDimension(
+          MediaQuery.textScalerOf(context).scale(12) * 1.16,
+          pixelRatio,
+        );
         final contentHeight =
             iconTextSize + widget.contentSpacing + labelHeight;
         final contentTop = (widget.itemHeight - contentHeight) / 2;

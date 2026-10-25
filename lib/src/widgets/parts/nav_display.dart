@@ -423,6 +423,7 @@ class _MiuixNavDisplayState<K extends MiuixNavKey>
           widget.backStack.length > 1 &&
           !_predictiveGesture &&
           (ModalRoute.of(context)?.isCurrent ?? true),
+      context: () => context,
     );
     WidgetsBinding.instance.addObserver(this);
   }
@@ -913,6 +914,10 @@ class _MiuixNavDisplayState<K extends MiuixNavKey>
 
   @override
   void handleCommitBackGesture() {
+    if (MiuixBackGestureScope.blockedOf(context)) {
+      handleCancelBackGesture();
+      return;
+    }
     if (!_predictiveGesture) return;
     if (_gestureVelocity <= -1) {
       _cancelGesture(progressVelocity: _gestureVelocity);
@@ -1136,9 +1141,13 @@ class _MiuixNavDisplayState<K extends MiuixNavKey>
         : 1.0;
     final canHandleBack = widget.backStack.length > 1;
     return PopScope<Object?>(
-      canPop: !canHandleBack,
+      canPop: !canHandleBack && !MiuixBackGestureScope.blockedOf(context),
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && canHandleBack) _requestBack();
+        if (!didPop &&
+            canHandleBack &&
+            !MiuixBackGestureScope.blockedOf(context)) {
+          _requestBack();
+        }
       },
       child: LayoutBuilder(
         builder: (context, constraints) {

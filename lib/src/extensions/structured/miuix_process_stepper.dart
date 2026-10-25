@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -391,7 +392,7 @@ class _MiuixProcessStepperState extends State<MiuixProcessStepper> {
             step.icon ??
             (icon == null
                 ? Text('${index + 1}', style: const TextStyle(fontSize: 13))
-                : Icon(icon)),
+                : MiuixThemedIcon(icon)),
       ),
     );
   }

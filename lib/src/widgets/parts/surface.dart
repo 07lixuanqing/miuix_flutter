@@ -334,7 +334,15 @@ class MiuixSurface extends StatelessWidget {
     // The caller's outer padding/margin precedes `.surface().clickable()` in
     // the Compose modifier chain. Keep it outside MiuixPressable so taps in
     // that transparent area do not activate the surface.
-    return Container(margin: effectiveMargin, child: result);
+    return Container(
+      margin: effectiveMargin,
+      child: MiuixSurfaceTheme.wrapSurface(
+        context,
+        effectiveShape,
+        surfaceColor,
+        result,
+      ),
+    );
   }
 }
 

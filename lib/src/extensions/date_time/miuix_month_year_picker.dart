@@ -620,7 +620,7 @@ class _MiuixMonthPickerState extends State<MiuixMonthPicker> {
             child: Row(
               children: <Widget>[
                 MiuixIconButton(
-                  icon: Icon(MiuixExtensionGlyphs.chevronBackward),
+                  icon: MiuixThemedIcon(MiuixExtensionGlyphs.chevronBackward),
                   onPressed: _visibleYear > minimumYear
                       ? () => _showYear(-1)
                       : null,
@@ -635,7 +635,7 @@ class _MiuixMonthPickerState extends State<MiuixMonthPicker> {
                   ),
                 ),
                 MiuixIconButton(
-                  icon: Icon(MiuixExtensionGlyphs.chevronForward),
+                  icon: MiuixThemedIcon(MiuixExtensionGlyphs.chevronForward),
                   onPressed: _visibleYear < maximumYear
                       ? () => _showYear(1)
                       : null,

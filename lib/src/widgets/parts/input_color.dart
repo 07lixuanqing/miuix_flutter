@@ -34,7 +34,7 @@ class MiuixTextField extends StatefulWidget {
     this.insideMargin = MiuixTextFieldDefaults.insideMargin,
     this.colors,
     this.backgroundColor,
-    this.cornerRadius = MiuixTextFieldDefaults.cornerRadius,
+    double? cornerRadius,
     this.labelColor,
     this.borderColor,
     this.leadingIcon,
@@ -51,6 +51,7 @@ class MiuixTextField extends StatefulWidget {
     this.maxLines,
     this.textStyle,
     this.keyboardType,
+    this.autofillHints,
     this.textInputAction,
     this.cursorColor,
     this.focusNode,
@@ -59,7 +60,7 @@ class MiuixTextField extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.onTextLayout,
-  });
+  }) : _cornerRadius = cornerRadius;
 
   /// Creates the source `TextField` parameter form.
   ///
@@ -81,6 +82,7 @@ class MiuixTextField extends StatefulWidget {
     List<TextInputFormatter>? inputTransformation,
     TextStyle? textStyle,
     TextInputType? keyboardType,
+    Iterable<String>? autofillHints,
     TextInputAction? keyboardOptions,
     ValueChanged<String>? onKeyboardAction,
     bool singleLine = false,
@@ -114,6 +116,7 @@ class MiuixTextField extends StatefulWidget {
       maxLines: singleLine ? 1 : maxLines,
       textStyle: textStyle,
       keyboardType: keyboardType,
+      autofillHints: autofillHints,
       textInputAction: keyboardOptions,
       cursorColor: cursorColor,
       focusNode: interactionSource,
@@ -147,7 +150,9 @@ class MiuixTextField extends StatefulWidget {
   final Color? backgroundColor;
 
   /// Source shape radius.
-  final double cornerRadius;
+  double get cornerRadius =>
+      _cornerRadius ?? MiuixTextFieldDefaults.cornerRadius;
+  final double? _cornerRadius;
 
   /// Optional inline and floating label color.
   final Color? labelColor;
@@ -188,6 +193,9 @@ class MiuixTextField extends StatefulWidget {
 
   /// Whether to hide typed text.
   final bool obscureText;
+
+  /// Platform autofill semantics; null preserves the default opt-out behavior.
+  final Iterable<String>? autofillHints;
 
   /// Whether the field is constrained to a single text line.
   final bool singleLine;
@@ -561,7 +569,14 @@ class _MiuixTextFieldState extends State<MiuixTextField>
         defaultColors.labelColor;
     final cursorColor = widget.cursorColor ?? borderColor;
     final borderRadius = BorderRadius.circular(
-      math.max(0, _finiteOr(widget.cornerRadius, 16)),
+      math.max(
+        0,
+        _finiteOr(
+          widget._cornerRadius ??
+              MiuixTheme.of(context).hyperOs4.textFieldCornerRadius,
+          MiuixTextFieldDefaults.cornerRadius,
+        ),
+      ),
     );
     final side = BorderSide(
       color: Color.lerp(backgroundColor, borderColor, focusProgress)!,
@@ -720,6 +735,7 @@ class _MiuixTextFieldState extends State<MiuixTextField>
                                 backgroundCursorColor: semantic['onSurface'],
                                 readOnly: widget.readOnly,
                                 obscureText: widget.obscureText,
+                                autofillHints: widget.autofillHints,
                                 onChanged: _handleChanged,
                                 onSubmitted: widget.onSubmitted,
                                 minLines: minLines,

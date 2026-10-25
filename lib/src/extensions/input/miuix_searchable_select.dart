@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart' show setEquals;
@@ -472,7 +473,7 @@ class _MiuixSearchableSelectState<T extends Object>
             ),
             if (widget.clearable && hasSelection && widget.enabled)
               MiuixIconButton(
-                icon: Icon(MiuixExtensionGlyphs.close),
+                icon: MiuixThemedIcon(MiuixExtensionGlyphs.close),
                 tooltip: '清除选择',
                 onPressed: () {
                   _controller.clear();
@@ -800,11 +801,11 @@ class _MiuixSearchableSelectDialogState<T extends Object>
             focusNode: _searchFocusNode,
             hint: widget.searchHint,
             singleLine: true,
-            leadingIcon: Icon(MiuixExtensionGlyphs.search),
+            leadingIcon: MiuixThemedIcon(MiuixExtensionGlyphs.search),
             trailingIcon: _query.text.isEmpty
                 ? null
                 : MiuixIconButton(
-                    icon: Icon(MiuixExtensionGlyphs.close),
+                    icon: MiuixThemedIcon(MiuixExtensionGlyphs.close),
                     tooltip: '清除搜索',
                     onPressed: () => setState(_query.clear),
                   ),
@@ -942,7 +943,7 @@ class _MiuixSearchableSelectDialogState<T extends Object>
                                         ),
                                       ),
                                       if (selected)
-                                        Icon(
+                                        MiuixThemedIcon(
                                           MiuixExtensionGlyphs.confirm,
                                           color: foreground,
                                         ),

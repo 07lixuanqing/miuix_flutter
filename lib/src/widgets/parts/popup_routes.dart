@@ -459,6 +459,8 @@ Future<T?> _showMiuixWindowPopupSurface<T>({
                 // PopScope; its depth controller is the authoritative guard.
                 (cascadingController != null || (canDismiss?.call() ?? true)),
             onPopInvokedWithResult: (didPop, result) {
+              // PopScope 拒绝会广播给所有监听器，保护层出现时不能顺带折叠菜单。
+              if (MiuixBackGestureScope.blockedOf(context)) return;
               if (didPop) {
                 requestDismiss();
               } else {

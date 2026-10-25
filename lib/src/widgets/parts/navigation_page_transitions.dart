@@ -169,6 +169,7 @@ class _MiuixPredictivePageTransitionState
     extends State<_MiuixPredictivePageTransition>
     with WidgetsBindingObserver {
   late _MiuixRouteBackGestureState _backGesture;
+  bool _ownsGesture = false;
 
   void _handleBackGestureChanged() {
     if (mounted) setState(() {});
@@ -193,17 +194,24 @@ class _MiuixPredictivePageTransitionState
     _backGesture = _miuixRouteBackStates[navigator] ??=
         _MiuixRouteBackGestureState();
     _backGesture.addListener(_handleBackGestureChanged);
+    _MiuixPredictiveBackOwnerRegistry.instance.register(
+      this,
+      (_) => widget.route.isCurrent && widget.route.popGestureEnabled,
+      context: () => context,
+    );
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   bool handleStartBackGesture(PredictiveBackEvent backEvent) {
     if (backEvent.isButtonEvent ||
+        !_MiuixPredictiveBackOwnerRegistry.instance.isTop(this, backEvent) ||
         !widget.route.isCurrent ||
         !widget.route.popGestureEnabled) {
       return false;
     }
     _backGesture.start(widget.route, backEvent.swipeEdge);
+    _ownsGesture = true;
     widget.route.handleStartBackGesture(progress: 1 - backEvent.progress);
     return true;
   }
@@ -218,26 +226,53 @@ class _MiuixPredictivePageTransitionState
 
   @override
   void handleCancelBackGesture() {
-    if (!identical(_backGesture.owner, widget.route)) return;
+    if (!_ownsGesture || !identical(_backGesture.owner, widget.route)) return;
+    _ownsGesture = false;
     _backGesture.cancel(widget.route);
     widget.route.animation?.addStatusListener(_clearAfterCancel);
     widget.route.handleCancelBackGesture();
+    final status = widget.route.animation?.status;
+    if (status != null) _clearAfterCancel(status);
   }
 
   @override
   void handleCommitBackGesture() {
-    if (!identical(_backGesture.owner, widget.route)) return;
+    if (MiuixBackGestureScope.blockedOf(context)) {
+      handleCancelBackGesture();
+      return;
+    }
+    if (!_ownsGesture || !identical(_backGesture.owner, widget.route)) return;
+    _ownsGesture = false;
     _backGesture.commit(widget.route);
     widget.route.handleCommitBackGesture();
   }
 
   @override
-  Widget build(BuildContext context) =>
-      widget.builder(context, _backGesture, widget.child);
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      handleCancelBackGesture();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _MiuixBackGuard(
+    child: widget.builder(context, _backGesture, widget.child),
+  );
 
   @override
   void dispose() {
+    if (_ownsGesture) {
+      _ownsGesture = false;
+      final route = widget.route;
+      // A theme change can replace the transition while retaining its route.
+      // Do not mutate the Navigator while the old subtree is being unmounted.
+      scheduleMicrotask(() {
+        if (route.isActive) route.handleCancelBackGesture();
+      });
+    }
     WidgetsBinding.instance.removeObserver(this);
+    _MiuixPredictiveBackOwnerRegistry.instance.unregister(this);
     widget.route.animation?.removeStatusListener(_clearAfterCancel);
     _backGesture.removeListener(_handleBackGestureChanged);
     _backGesture.clear(widget.route, notify: false);
@@ -339,29 +374,29 @@ class MiuixNavigationPageTransitionsBuilder extends PageTransitionsBuilder {
               secondaryAnimation.value == 0 &&
               animation.status != AnimationStatus.completed &&
               animation.status != AnimationStatus.dismissed;
-          if (enableCornerClip && topSceneMoving && cornerRadius > 0) {
-            scene = ClipPath(
-              clipper: ShapeBorderClipper(
-                shape: MiuixSquircleBorder(
-                  borderRadius: BorderRadius.only(
-                    topLeft: isRtl
-                        ? Radius.zero
-                        : Radius.circular(cornerRadius),
-                    topRight: isRtl
-                        ? Radius.circular(cornerRadius)
-                        : Radius.zero,
-                    bottomLeft: isRtl
-                        ? Radius.zero
-                        : Radius.circular(cornerRadius),
-                    bottomRight: isRtl
-                        ? Radius.circular(cornerRadius)
-                        : Radius.zero,
-                  ),
+          // Keep the page at the same element depth across motion boundaries.
+          // Inserting/removing a clip reparents the route's keyed subtree and
+          // invalidates inherited dependencies throughout the retained page.
+          scene = ClipPath(
+            clipBehavior: enableCornerClip && topSceneMoving && cornerRadius > 0
+                ? Clip.antiAlias
+                : Clip.none,
+            clipper: ShapeBorderClipper(
+              shape: MiuixSquircleBorder(
+                borderRadius: BorderRadius.only(
+                  topLeft: isRtl ? Radius.zero : Radius.circular(cornerRadius),
+                  topRight: isRtl ? Radius.circular(cornerRadius) : Radius.zero,
+                  bottomLeft: isRtl
+                      ? Radius.zero
+                      : Radius.circular(cornerRadius),
+                  bottomRight: isRtl
+                      ? Radius.circular(cornerRadius)
+                      : Radius.zero,
                 ),
               ),
-              child: scene,
-            );
-          }
+            ),
+            child: scene,
+          );
 
           final transitioning =
               secondaryAnimation.status == AnimationStatus.forward ||
@@ -381,21 +416,23 @@ class MiuixNavigationPageTransitionsBuilder extends PageTransitionsBuilder {
           // width parallax layer. Translating the scrim with that page exposed a
           // bright edge strip and made the restored page appear to snap late on
           // pop, especially over glass or animated content.
-          if (!enableDim || secondary <= 0) return translatedScene;
           return Stack(
             fit: StackFit.passthrough,
             children: [
               translatedScene,
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: ColoredBox(
-                    key: const ValueKey('miuix-navigation-transition-dim'),
-                    color: Colors.black.withValues(
-                      alpha: (secondary * .5).clamp(0.0, .5),
+              if (enableDim)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: ColoredBox(
+                      key: secondary > 0
+                          ? const ValueKey('miuix-navigation-transition-dim')
+                          : null,
+                      color: Colors.black.withValues(
+                        alpha: (secondary * .5).clamp(0.0, .5),
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           );
         },
@@ -422,6 +459,66 @@ class MiuixPageRoute<T> extends MaterialPageRoute<T> {
 
   /// Source-style motion recipe used for this route's autonomous transition.
   final MiuixNavMotion navMotion;
+
+  NavigatorState? _gestureNavigator;
+
+  // Own the start/stop pair at route lifetime, not transition-widget lifetime.
+  // Flutter's default completion callback can disappear when removeRoute or
+  // replacement disposes the animation before Android sends cancel/commit.
+  // An unmatched start makes every route in this Navigator ignore pointers.
+  @override
+  void handleStartBackGesture({double progress = 0.0}) {
+    if (_gestureNavigator != null || !isCurrent) return;
+    controller?.value = progress;
+    _gestureNavigator = navigator;
+    _gestureNavigator?.didStartUserGesture();
+  }
+
+  @override
+  void handleCancelBackGesture() => _finishBackGesture(commit: false);
+
+  @override
+  void handleCommitBackGesture() => _finishBackGesture(commit: true);
+
+  void _finishBackGesture({required bool commit}) {
+    if (_gestureNavigator == null) return;
+    controller?.removeStatusListener(_settleBackGesture);
+    if (commit && isCurrent) {
+      navigator?.pop();
+      if (controller?.isAnimating ?? false) {
+        controller!.reverse(from: controller!.upperBound);
+      }
+    } else if (isActive && !(controller?.isCompleted ?? true)) {
+      // A dialog or another page may cover the owner during the drag. Restore
+      // the retained page too, without popping the new top route.
+      controller!.forward();
+    }
+    if (controller?.isAnimating ?? false) {
+      controller!.addStatusListener(_settleBackGesture);
+    } else {
+      _releaseBackGesture();
+    }
+  }
+
+  void _settleBackGesture(AnimationStatus status) {
+    if (status == AnimationStatus.completed ||
+        status == AnimationStatus.dismissed) {
+      _releaseBackGesture();
+    }
+  }
+
+  void _releaseBackGesture() {
+    controller?.removeStatusListener(_settleBackGesture);
+    final owner = _gestureNavigator;
+    _gestureNavigator = null;
+    if (owner != null && owner.mounted) owner.didStopUserGesture();
+  }
+
+  @override
+  void dispose() {
+    _releaseBackGesture();
+    super.dispose();
+  }
 
   @override
   Duration get transitionDuration =>

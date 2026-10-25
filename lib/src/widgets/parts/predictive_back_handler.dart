@@ -45,6 +45,7 @@ class MiuixPredictiveBackHandler extends StatefulWidget {
   const MiuixPredictiveBackHandler({
     super.key,
     this.enabled = true,
+    this.handleDiscreteBack = true,
     this.canStart,
     required this.onProgress,
     required this.onCommit,
@@ -53,6 +54,9 @@ class MiuixPredictiveBackHandler extends StatefulWidget {
   });
 
   final bool enabled;
+
+  /// 嵌套 Navigator 的离散返回由外层 PopScope 委派，预测事件仍按层级仲裁。
+  final bool handleDiscreteBack;
   final MiuixPredictiveBackAdmission? canStart;
   final ValueChanged<MiuixNavBackEvent> onProgress;
   final VoidCallback onCommit;
@@ -89,6 +93,27 @@ class MiuixWindowNavigationEventBridge extends StatelessWidget {
 typedef _MiuixPredictiveBackEligibility =
     bool Function(PredictiveBackEvent? event);
 
+// A route can be current in a nested Navigator while an outer dialog covers
+// the entire branch. Cached/offstage branches must not handle platform Back.
+bool _miuixBackBranchIsActive(BuildContext context) {
+  if (!context.mounted ||
+      !TickerMode.valuesOf(context).enabled ||
+      ModalRoute.of(context)?.isCurrent == false) {
+    return false;
+  }
+  var active = true;
+  context.visitAncestorElements((element) {
+    if (element is StatefulElement &&
+        element.state is NavigatorState &&
+        ModalRoute.of(element)?.isCurrent == false) {
+      active = false;
+      return false;
+    }
+    return true;
+  });
+  return active;
+}
+
 class _MiuixPredictiveBackOwnerRegistry extends ChangeNotifier {
   _MiuixPredictiveBackOwnerRegistry._();
 
@@ -96,25 +121,54 @@ class _MiuixPredictiveBackOwnerRegistry extends ChangeNotifier {
 
   final List<({Object owner, _MiuixPredictiveBackEligibility isEligible})>
   _owners = [];
+  PredictiveBackEvent? _admittedEvent;
+  Object? _admittedOwner;
 
-  void register(Object owner, _MiuixPredictiveBackEligibility isEligible) {
+  void register(
+    Object owner,
+    _MiuixPredictiveBackEligibility isEligible, {
+    required BuildContext Function() context,
+  }) {
     _owners.removeWhere((entry) => identical(entry.owner, owner));
-    _owners.add((owner: owner, isEligible: isEligible));
+    _owners.add((
+      owner: owner,
+      isEligible: (event) =>
+          _miuixBackBranchIsActive(context()) &&
+          !MiuixBackGestureScope.blockedOf(context()) &&
+          // 设置关闭时只拒绝连续手势，保留普通返回的同一优先级。
+          (event == null || MiuixBackGestureScope.enabledOf(context())) &&
+          isEligible(event),
+    ));
     notifyListeners();
   }
 
   void unregister(Object owner) {
     final before = _owners.length;
     _owners.removeWhere((entry) => identical(entry.owner, owner));
+    if (identical(_admittedOwner, owner)) _admittedOwner = null;
     if (_owners.length != before) notifyListeners();
   }
 
   bool isTop(Object owner, [PredictiveBackEvent? event]) {
-    for (final entry in _owners.reversed) {
-      if (!entry.isEligible(event)) continue;
-      return identical(entry.owner, owner);
+    if (event != null) {
+      // WidgetsBinding asks every observer using the same event object. Keep
+      // one winner even when starting its animation changes its eligibility.
+      if (!identical(event, _admittedEvent)) {
+        _admittedEvent = event;
+        _admittedOwner = _topEligible(event);
+      }
+      return identical(_admittedOwner, owner);
     }
-    return false;
+    return identical(_topEligible(null), owner);
+  }
+
+  Object? _topEligible(PredictiveBackEvent? event) {
+    for (final entry in _owners.reversed) {
+      final eligible = entry.isEligible(event);
+      if (!eligible) continue;
+      return entry.owner;
+    }
+    return null;
   }
 }
 
@@ -130,7 +184,7 @@ class _MiuixPredictiveBackHandlerState extends State<MiuixPredictiveBackHandler>
   void initState() {
     super.initState();
     _registry
-      ..register(this, _isEligible)
+      ..register(this, _isEligible, context: () => context)
       ..addListener(_handleOwnerOrderChanged);
     WidgetsBinding.instance.addObserver(this);
   }
@@ -196,6 +250,11 @@ class _MiuixPredictiveBackHandlerState extends State<MiuixPredictiveBackHandler>
 
   @override
   void handleCommitBackGesture() {
+    // 保护层可能在拖动开始后出现，此时只能复位，不能继续提交。
+    if (MiuixBackGestureScope.blockedOf(context)) {
+      handleCancelBackGesture();
+      return;
+    }
     if (!_ownsGesture) return;
     _ownsGesture = false;
     widget.onCommit();
@@ -212,11 +271,15 @@ class _MiuixPredictiveBackHandlerState extends State<MiuixPredictiveBackHandler>
 
   @override
   Widget build(BuildContext context) {
-    final ownsDiscreteBack = _canOwnBack;
+    final ownsDiscreteBack = widget.handleDiscreteBack && _canOwnBack;
     return PopScope<Object?>(
-      canPop: !ownsDiscreteBack,
+      canPop: !ownsDiscreteBack && !MiuixBackGestureScope.blockedOf(context),
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && ownsDiscreteBack) widget.onCommit();
+        if (!didPop &&
+            ownsDiscreteBack &&
+            !MiuixBackGestureScope.blockedOf(context)) {
+          widget.onCommit();
+        }
       },
       child: widget.child,
     );

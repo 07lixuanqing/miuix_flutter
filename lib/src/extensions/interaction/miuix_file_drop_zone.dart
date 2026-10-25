@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'dart:collection';
 import 'dart:typed_data';
 
@@ -698,7 +699,7 @@ class _MiuixFileDropZoneState extends State<MiuixFileDropZone> {
             color: _dragging ? colors.activeBorder : colors.foreground,
             size: 42,
           ),
-          child: widget.icon ?? Icon(MiuixExtensionGlyphs.upload),
+          child: widget.icon ?? MiuixThemedIcon(MiuixExtensionGlyphs.upload),
         ),
         const SizedBox(height: 10),
         Text(

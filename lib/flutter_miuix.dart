@@ -20,3 +20,8 @@ export 'src/theme/miuix_semantic_colors.dart';
 export 'src/theme/hyperos4_tokens.dart';
 export 'src/theme/miuix_theme.dart';
 export 'src/widgets/miuix_widgets.dart';
+
+export 'src/icons/miuix_icon_theme.dart';
+export 'src/icons/miuix_icon_interaction.dart';
+
+export 'src/theme/miuix_surface_theme.dart';

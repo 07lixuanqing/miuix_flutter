@@ -2042,7 +2042,7 @@ void main() {
       find.byKey(const ValueKey('top-app-bar-gradient-filter')),
       findsOneWidget,
     );
-    expect(find.byType(ShaderMask), findsNWidgets(3));
+    expect(find.byType(ShaderMask), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

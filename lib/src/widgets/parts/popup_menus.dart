@@ -371,68 +371,70 @@ class MiuixActionSheet {
       title: title,
       allowDismiss: allowDismiss,
       glass: glass,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (message != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: MiuixSemanticColors.of(
-                      context,
-                    )['onSurfaceSecondary'],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (message != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: MiuixSemanticColors.of(
+                        context,
+                      )['onSurfaceSecondary'],
+                    ),
                   ),
                 ),
               ),
-            ),
-          for (var index = 0; index < actions.length; index++)
-            Semantics(
-              label: actions[index].semanticLabel,
-              child: _MiuixMenuRow(
-                icon: actions[index].icon,
-                label: actions[index].label,
-                summary: actions[index].summary,
-                enabled: actions[index].enabled,
-                selected: actions[index].selected,
-                trailing: actions[index].selected
-                    ? _MiuixDropdownCheck(
-                        color: Theme.of(context).colorScheme.primary,
-                      )
-                    : null,
-                destructive: actions[index].destructive,
-                isFirst: index == 0,
-                isLast: index == actions.length - 1,
-                onTap: () {
+            for (var index = 0; index < actions.length; index++)
+              Semantics(
+                label: actions[index].semanticLabel,
+                child: _MiuixMenuRow(
+                  icon: actions[index].icon,
+                  label: actions[index].label,
+                  summary: actions[index].summary,
+                  enabled: actions[index].enabled,
+                  selected: actions[index].selected,
+                  trailing: actions[index].selected
+                      ? _MiuixDropdownCheck(
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
+                  destructive: actions[index].destructive,
+                  isFirst: index == 0,
+                  isLast: index == actions.length - 1,
+                  onTap: () {
+                    if (navigator?.mounted == true && navigator!.canPop()) {
+                      navigator.pop();
+                    }
+                    MiuixHaptics.perform(
+                      actions[index].destructive
+                          ? MiuixHapticType.gestureThresholdActivate
+                          : MiuixHapticType.confirm,
+                    );
+                    actions[index].onTap();
+                  },
+                ),
+              ),
+            if (cancelLabel != null) ...[
+              const SizedBox(height: 8),
+              MiuixButton(
+                label: cancelLabel,
+                expand: true,
+                onPressed: () {
                   if (navigator?.mounted == true && navigator!.canPop()) {
                     navigator.pop();
                   }
-                  MiuixHaptics.perform(
-                    actions[index].destructive
-                        ? MiuixHapticType.gestureThresholdActivate
-                        : MiuixHapticType.confirm,
-                  );
-                  actions[index].onTap();
                 },
               ),
-            ),
-          if (cancelLabel != null) ...[
-            const SizedBox(height: 8),
-            MiuixButton(
-              label: cancelLabel,
-              expand: true,
-              onPressed: () {
-                if (navigator?.mounted == true && navigator!.canPop()) {
-                  navigator.pop();
-                }
-              },
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

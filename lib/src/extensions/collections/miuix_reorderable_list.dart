@@ -1,3 +1,4 @@
+import '../../icons/miuix_icon_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -150,7 +151,7 @@ class MiuixDragHandle extends StatefulWidget {
   const MiuixDragHandle({
     super.key,
     required this.index,
-    this.icon = const Icon(Icons.drag_handle_rounded),
+    this.icon = const MiuixThemedIcon(Icons.drag_handle_rounded),
     this.enabled = true,
     this.delayed,
     this.semanticLabel = '拖动排序',
