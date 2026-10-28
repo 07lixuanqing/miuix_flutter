@@ -247,7 +247,8 @@ class MiuixTextField extends StatefulWidget {
 }
 
 class _MiuixTextFieldState extends State<MiuixTextField>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin
+    implements TextSelectionGestureDetectorBuilderDelegate {
   // Animation parity notes for the state holder:
   // - Compose owns independent animate-as-state channels for each target value.
   // - Flutter therefore keeps focus and label motion in separate controllers.
@@ -279,6 +280,25 @@ class _MiuixTextFieldState extends State<MiuixTextField>
   double _focusTarget = 0;
   double _labelTarget = 0;
   bool _reduceMotion = false;
+  // 系统返回可隐藏键盘而保留 FocusNode，下一次点击必须重新请求输入连接。
+  // key 稳定绑定原 EditableText，不替换 controller、选区或输入法组合状态。
+  final _editableKey = GlobalKey<EditableTextState>();
+  late final TextSelectionGestureDetectorBuilder _selectionGestures;
+
+  @override
+  GlobalKey<EditableTextState> get editableTextKey => _editableKey;
+
+  // 与框架标准输入框一致，压力手势仅在 iOS 开启。
+  // 选择、长按和单击共用一套识别器，不能让父子 Tap 竞争漏掉再次唤起。
+  @override
+  bool get forcePressEnabled => defaultTargetPlatform == TargetPlatform.iOS;
+
+  // 只读仍可选择文字；具体策略继续由原 EditableText 决定。
+  // 构建首帧尚未绑定 key 时只保留 enabled 约束，不缓存一个过期策略。
+  @override
+  bool get selectionEnabled =>
+      widget.enabled &&
+      (_editableKey.currentState?.widget.selectionEnabled ?? true);
   MiuixTextFieldLayoutResult? _lastLayoutResult;
   MiuixTextFieldLayoutResult? _pendingLayoutResult;
   bool _layoutReportScheduled = false;
@@ -286,6 +306,7 @@ class _MiuixTextFieldState extends State<MiuixTextField>
   @override
   void initState() {
     super.initState();
+    _selectionGestures = TextSelectionGestureDetectorBuilder(delegate: this);
     _syncController();
     _syncFocusNode();
     _focusTarget = 0;
@@ -606,9 +627,8 @@ class _MiuixTextFieldState extends State<MiuixTextField>
           : (sourceLeading == null ? insideMargin.right : 0),
       insideMargin.bottom,
     );
-    final field = GestureDetector(
+    final field = _selectionGestures.buildGestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: widget.enabled ? () => _focusNode.requestFocus() : null,
       child: _MiuixTextFieldBackground(
         key: const ValueKey('miuix-text-field-surface'),
         color: backgroundColor,
@@ -725,6 +745,10 @@ class _MiuixTextFieldState extends State<MiuixTextField>
                                 insideMargin.top / 2 * labelProgress,
                               ),
                               child: EditableText(
+                                key: _editableKey,
+                                // 选择识别器统一负责点击与长按，避免两个识别器互相抢占。
+                                // 框架在每次有效点击结束时都会请求键盘，已有焦点也能重新弹出。
+                                rendererIgnoresPointer: true,
                                 controller: _controller,
                                 focusNode: _focusNode,
                                 style: sourceTextStyle.copyWith(
