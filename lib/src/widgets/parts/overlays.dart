@@ -824,27 +824,20 @@ class MiuixDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (title != null) ...[
-                  SizedBox(
+                  _MiuixDialogParagraph(
                     key: const ValueKey('miuix-dialog-title-placeable'),
-                    height: titleLineHeight,
-                    child: Center(
-                      child: Text(
-                        title!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color:
-                              titleColor ??
-                              MiuixDialogDefaults.titleColor(context),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ),
+                    text: title!,
+                    color:
+                        titleColor ?? MiuixDialogDefaults.titleColor(context),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    sourceLogicalLineHeight: titleLineHeight,
+                    preserveNaturalLineHeight: true,
                   ),
                   SizedBox(height: titleSpacing),
                 ],
                 if (summary != null) ...[
-                  _MiuixDialogSummary(
+                  _MiuixDialogParagraph(
                     text: summary!,
                     color:
                         summaryColor ??
@@ -913,25 +906,38 @@ class MiuixDialog extends StatelessWidget {
 /// choose the dialog's intrinsic height moves the entire compact panel upward.
 /// The painter below decides only how many lines the available width needs.
 /// Each resulting line then occupies the same density-rounded source height.
-class _MiuixDialogSummary extends StatelessWidget {
-  const _MiuixDialogSummary({required this.text, required this.color});
+class _MiuixDialogParagraph extends StatelessWidget {
+  const _MiuixDialogParagraph({
+    super.key,
+    required this.text,
+    required this.color,
+    this.fontSize = 16,
+    this.fontWeight,
+    this.sourceLogicalLineHeight = 49 / 2.625,
+    this.preserveNaturalLineHeight = false,
+  });
 
   final String text;
   final Color color;
+  final double fontSize;
+  final FontWeight? fontWeight;
+  final double sourceLogicalLineHeight;
+  final bool preserveNaturalLineHeight;
 
   @override
   Widget build(BuildContext context) {
     final textDirection = Directionality.of(context);
     final textScaler = MediaQuery.textScalerOf(context);
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-    const sourceLogicalLineHeight = 49 / 2.625;
+    // 默认字号保持已校准的原版行框；辅助功能放大后按同一 scaler 扩展。
+    // 之前只放大字形却保留固定 21dp 标题框，会裁掉中文标题的上下半部。
     final sourceLineHeight = _miuixCeilLogicalDimension(
-      sourceLogicalLineHeight,
+      textScaler.scale(sourceLogicalLineHeight),
       pixelRatio,
     );
-    final style = DefaultTextStyle.of(
-      context,
-    ).style.merge(TextStyle(color: color, fontSize: 16));
+    final style = DefaultTextStyle.of(context).style.merge(
+      TextStyle(color: color, fontSize: fontSize, fontWeight: fontWeight),
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final painter = TextPainter(
@@ -941,19 +947,33 @@ class _MiuixDialogSummary extends StatelessWidget {
           textScaler: textScaler,
         )..layout(maxWidth: constraints.maxWidth);
         final lineCount = math.max(1, painter.computeLineMetrics().length);
+        // 普通单行标题保留原版已校准的居中位置；放大或换行时容纳完整字框。
+        final naturalTitle = preserveNaturalLineHeight;
+        final expandedTitle =
+            naturalTitle &&
+            (textScaler.scale(fontSize) != fontSize || lineCount > 1);
         return SizedBox(
-          height: sourceLineHeight * lineCount,
+          height: expandedTitle
+              ? math.max(sourceLineHeight * lineCount, painter.height)
+              : sourceLineHeight * lineCount,
           child: Align(
             alignment: Alignment.center,
             child: Text(
               text,
               textAlign: TextAlign.center,
-              style: style.copyWith(height: sourceLineHeight / 16),
-              strutStyle: StrutStyle(
-                fontSize: 16,
-                height: sourceLineHeight / 16,
-                forceStrutHeight: true,
-              ),
+              // Text 和 Strut 的字号仍交给系统缩放，行高比例不能重复放大。
+              style: naturalTitle
+                  ? style
+                  : style.copyWith(
+                      height: sourceLineHeight / textScaler.scale(fontSize),
+                    ),
+              strutStyle: naturalTitle
+                  ? null
+                  : StrutStyle(
+                      fontSize: fontSize,
+                      height: sourceLineHeight / textScaler.scale(fontSize),
+                      forceStrutHeight: true,
+                    ),
             ),
           ),
         );

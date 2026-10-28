@@ -438,7 +438,11 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
             final width = constraints.maxWidth;
             final theme = Theme.of(context);
             final scheme = Theme.of(context).colorScheme;
-            final tint = sourceStyle
+            // 显式前景与普通侧栏共用同一来源，不在展开后恢复另一种主色。
+            final supplied = _MiuixNavigationRailColors.maybeOf(context);
+            final tint = selected && supplied?.foreground != null
+                ? supplied!.foreground!
+                : sourceStyle
                 ? MiuixSemanticColors.of(context)['onSurfaceContainer']
                 : selected
                 ? scheme.primary
@@ -455,7 +459,8 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
             );
             final painter = TextPainter(
               text: TextSpan(text: item.label, style: labelStyle),
-              maxLines: 1,
+              // 使用实际字号测量完整标签，不能只扩大绘制字体却保留单行高度。
+              textScaler: MediaQuery.textScalerOf(context),
               textDirection: Directionality.of(context),
             );
             const margin =
@@ -474,7 +479,7 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
                   expandedSpacing,
             );
             final labelMax = _miuixLerpDouble(
-              width,
+              supplied?.background == null ? width : math.max(0, width - 16),
               expandedLabelMax,
               progress,
             );
@@ -520,15 +525,21 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
               expandedVerticalPad,
               progress,
             );
-            final indicatorHeight = iconSize + indicatorPad * 2;
-            final indicatorY = iconY - indicatorPad;
+            // 显式背景必须覆盖完整标签，白字不能落到胶囊外的浅色画布。
+            final explicitBackground = supplied?.background != null;
+            final indicatorHeight = explicitBackground
+                ? height
+                : iconSize + indicatorPad * 2;
+            final indicatorY = explicitBackground ? 0.0 : iconY - indicatorPad;
             final indicatorX = _miuixLerpDouble(
-              collapsedIconX - leadingInset,
+              explicitBackground ? 8 : collapsedIconX - leadingInset,
               margin,
               progress,
             );
             final indicatorWidth = _miuixLerpDouble(
-              iconSize + leadingInset * 2,
+              explicitBackground
+                  ? math.max(0, width - 16)
+                  : iconSize + leadingInset * 2,
               width - margin * 2,
               progress,
             );
@@ -552,11 +563,12 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
             );
 
             final indicatorBase = selected
-                ? sourceStyle
-                      ? theme.colorScheme.surfaceContainerHigh
-                      : theme.colorScheme.primaryContainer.withValues(
-                          alpha: .72,
-                        )
+                ? supplied?.background ??
+                      (sourceStyle
+                          ? theme.colorScheme.surfaceContainerHigh
+                          : theme.colorScheme.primaryContainer.withValues(
+                              alpha: .72,
+                            ))
                 : Colors.transparent;
             final indicatorColor = Color.alphaBlend(
               MiuixSemanticColors.of(context)['onBackground'].withValues(
@@ -648,8 +660,8 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
                     height: labelHeight,
                     child: Text(
                       item.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      // 自然换行与上方 TextPainter 使用同一字号和宽度。
+                      softWrap: true,
                       style: labelStyle,
                     ),
                   ),

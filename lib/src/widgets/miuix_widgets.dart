@@ -48,6 +48,7 @@ part 'parts/nav_display.dart';
 part 'parts/tab_row_touch_target.dart';
 part 'parts/popup_host_layouts.dart';
 part 'parts/navigation_rail.dart';
+part 'parts/navigation_rail_colors.dart';
 part 'parts/navigation_rail_expandable.dart';
 part 'parts/top_app_bars.dart';
 part 'parts/top_app_bar_accessible_title.dart';

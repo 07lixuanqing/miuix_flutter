@@ -13,6 +13,10 @@ void main() {
       visibleMonth: today,
       selectedDates: [other],
     );
+    // 网格包含相邻月份，同日数字不能充当跨月份唯一标识。
+    // 角标和农历均绑定完整日期，不改变任何被测高亮位置或尺寸。
+    String id(String prefix, DateTime date) =>
+        '$prefix-${date.year}-${date.month}-${date.day}';
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MiuixTheme(
@@ -36,12 +40,12 @@ void main() {
                   Positioned(
                     top: 0,
                     right: 0,
-                    child: Text('班', key: ValueKey('badge-${date.day}')),
+                    child: Text('班', key: ValueKey(id('badge', date))),
                   ),
                   Positioned(
                     bottom: 12,
                     left: 6,
-                    child: Text('农历', key: ValueKey('lunar-${date.day}')),
+                    child: Text('农历', key: ValueKey(id('lunar', date))),
                   ),
                 ],
               ),
@@ -58,15 +62,15 @@ void main() {
       final rect = tester.getRect(highlight);
       expect(rect.size, const Size(50, 58));
       expect(
-        tester.getRect(find.byKey(ValueKey('badge-${date.day}')).first).bottom,
+        tester.getRect(find.byKey(ValueKey(id('badge', date)))).bottom,
         lessThan(rect.top),
       );
       expect(
-        tester.getRect(find.byKey(ValueKey('lunar-${date.day}')).first).top,
+        tester.getRect(find.byKey(ValueKey(id('lunar', date)))).top,
         greaterThan(rect.top),
       );
       expect(
-        tester.getRect(find.byKey(ValueKey('lunar-${date.day}')).first).bottom,
+        tester.getRect(find.byKey(ValueKey(id('lunar', date)))).bottom,
         lessThan(rect.bottom),
       );
       final decoration =

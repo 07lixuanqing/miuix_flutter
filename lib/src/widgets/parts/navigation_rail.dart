@@ -221,6 +221,8 @@ class MiuixNavigationRail extends StatelessWidget {
     required this.onDestinationSelected,
     this.header,
     this.color,
+    this.selectedContentColor,
+    this.selectedBackgroundColor,
     this.showDivider = false,
     this.defaultWindowInsetsPadding = true,
     this.glass = true,
@@ -256,6 +258,8 @@ class MiuixNavigationRail extends StatelessWidget {
        displayMode = mode,
        sourceChildren = children,
        glass = false,
+       selectedContentColor = null,
+       selectedBackgroundColor = null,
        _source = true;
 
   /// Creates the old MIUIX data-driven rail for pixel migration work.
@@ -281,6 +285,8 @@ class MiuixNavigationRail extends StatelessWidget {
     this.collapseContentDescription = '折叠导航栏',
   }) : sourceChildren = null,
        glass = false,
+       selectedContentColor = null,
+       selectedBackgroundColor = null,
        _source = true;
 
   /// Destination list.
@@ -300,6 +306,13 @@ class MiuixNavigationRail extends StatelessWidget {
 
   /// Rail background; defaults to the exact opaque surface token.
   final Color? color;
+
+  /// 显式选中前景；与 [selectedBackgroundColor] 配对使用，默认沿用主题。
+  final Color? selectedContentColor;
+
+  /// 显式选中填充，不自动添加透明度；空值保留默认玻璃选中态。
+  /// 指定时覆盖图标和标签的完整点击单元，确保黑白主题标签也可读。
+  final Color? selectedBackgroundColor;
 
   /// Whether to append the source 0.75dp vertical divider.
   final bool showDivider;
@@ -344,7 +357,11 @@ class MiuixNavigationRail extends StatelessWidget {
   final bool _source;
 
   @override
-  Widget build(BuildContext context) => _MiuixNavigationRailLayout(rail: this);
+  Widget build(BuildContext context) => _MiuixNavigationRailColors(
+    foreground: selectedContentColor,
+    background: selectedBackgroundColor,
+    child: _MiuixNavigationRailLayout(rail: this),
+  );
 }
 
 /// Source `NavigationRailItem` widget.
@@ -572,10 +589,15 @@ class _MiuixNavigationRailItemState extends State<_MiuixNavigationRailItem>
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final semanticBase = MiuixSemanticColors.of(context)['onSurfaceContainer'];
-    final selectedContent = theme.brightness == Brightness.dark
-        ? scheme.onPrimaryContainer
-        : scheme.primary;
-    final base = widget.sourceStyle
+    final supplied = _MiuixNavigationRailColors.maybeOf(context);
+    final selectedContent =
+        supplied?.foreground ??
+        (theme.brightness == Brightness.dark
+            ? scheme.onPrimaryContainer
+            : scheme.primary);
+    final base = widget.selected && supplied?.foreground != null
+        ? supplied!.foreground!
+        : widget.sourceStyle
         ? semanticBase
         : widget.selected
         ? selectedContent
@@ -730,9 +752,10 @@ class _MiuixNavigationRailItemState extends State<_MiuixNavigationRailItem>
                         )
                       : ShapeDecoration(
                           color: widget.selected
-                              ? scheme.primary.withValues(
-                                  alpha: selectionTintOpacity,
-                                )
+                              ? supplied?.background ??
+                                    scheme.primary.withValues(
+                                      alpha: selectionTintOpacity,
+                                    )
                               : Colors.transparent,
                           shape: MiuixSquircleBorder(
                             borderRadius: BorderRadius.circular(

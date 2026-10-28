@@ -346,6 +346,9 @@ class MiuixButton extends StatelessWidget {
           label: label ?? '',
           icon: icon,
           color: foreground,
+          // 便捷标签与文字按钮共用自然换行；有限宽度和大字号不能裁掉操作名称。
+          // 任意 child 仍由调用者负责布局，这一设置不改变其内容契约。
+          allowWrapping: true,
         );
     final button = _MiuixButtonSurface(
       content: content,

@@ -332,10 +332,9 @@ class MiuixNavigationPageTransitionsBuilder extends PageTransitionsBuilder {
         animation: Listenable.merge([animation, secondaryAnimation]),
         child: child,
         builder: (context, child) {
-          // Translation and the exposed rounded edge follow the reading
-          // direction. This keeps push and pop motion symmetric in RTL apps.
+          // 普通进出场仍按阅读方向；系统手势必须按物理边缘跟随手指。
+          // 页内历史已遵循这个约定，独立路由不能在同一右侧手势中反向移动。
           final isRtl = Directionality.of(context) == TextDirection.rtl;
-          final logicalDirection = isRtl ? -1.0 : 1.0;
           // Both channels must use the direction-aware resolver. Fixing only the
           // outgoing page still leaves the retained page and dim layer paused.
           final ownsBackGesture = identical(backGesture.owner, route);
@@ -343,6 +342,13 @@ class MiuixNavigationPageTransitionsBuilder extends PageTransitionsBuilder {
               backGesture.owner != null &&
               !ownsBackGesture &&
               secondaryAnimation.value > 1e-9;
+          // 只让本轮上层与下层共享物理方向，不影响同时出现的其他新路由。
+          // 取消和提交收尾期间继续保留同一方向，不能在松手时突然翻转。
+          final motionDirection = ownsBackGesture || hasCoveredPredictiveTrack
+              ? (backGesture.swipeEdge == SwipeEdge.right ? -1.0 : 1.0)
+              : (isRtl ? -1.0 : 1.0);
+          // 当前页向哪侧离开，反向一侧就会露出；圆角跟随真实露出的边缘。
+          final roundLeft = motionDirection > 0;
           final primary = ownsBackGesture
               ? backGesture.resolveTrack(animation.value, routeCurve)
               : MiuixNavigationTransitionMotion.resolve(
@@ -384,14 +390,18 @@ class MiuixNavigationPageTransitionsBuilder extends PageTransitionsBuilder {
             clipper: ShapeBorderClipper(
               shape: MiuixSquircleBorder(
                 borderRadius: BorderRadius.only(
-                  topLeft: isRtl ? Radius.zero : Radius.circular(cornerRadius),
-                  topRight: isRtl ? Radius.circular(cornerRadius) : Radius.zero,
-                  bottomLeft: isRtl
-                      ? Radius.zero
-                      : Radius.circular(cornerRadius),
-                  bottomRight: isRtl
+                  topLeft: roundLeft
                       ? Radius.circular(cornerRadius)
                       : Radius.zero,
+                  topRight: roundLeft
+                      ? Radius.zero
+                      : Radius.circular(cornerRadius),
+                  bottomLeft: roundLeft
+                      ? Radius.circular(cornerRadius)
+                      : Radius.zero,
+                  bottomRight: roundLeft
+                      ? Radius.zero
+                      : Radius.circular(cornerRadius),
                 ),
               ),
             ),
@@ -403,7 +413,7 @@ class MiuixNavigationPageTransitionsBuilder extends PageTransitionsBuilder {
               animation.status == AnimationStatus.reverse;
           final translatedScene = FractionalTranslation(
             key: const ValueKey('miuix-navigation-transition-scene'),
-            translation: Offset(translation * logicalDirection, 0),
+            translation: Offset(translation * motionDirection, 0),
             child: AbsorbPointer(
               key: const ValueKey('miuix-navigation-transition-input-block'),
               absorbing: blockInput && transitioning,

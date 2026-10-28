@@ -253,6 +253,7 @@ class MiuixThemeController extends ChangeNotifier {
   /// Replaces the entire theme object.
   void setTheme(MiuixThemeData data) {
     _data = data;
+    _useSchemeSemanticColors = data.useSchemeSemanticColors;
     _colorSchemeMode = data.mode;
     _lightColors = data.lightScheme;
     _darkColors = data.darkScheme;
@@ -319,6 +320,9 @@ class MiuixThemeController extends ChangeNotifier {
     _rebuild();
   }
 
+  // 仅由显式 setTheme 更新；旧控制器默认仍使用原生语义色。
+  bool _useSchemeSemanticColors = false;
+
   void _rebuild() {
     _data = _buildData();
     notifyListeners();
@@ -365,6 +369,7 @@ class MiuixThemeController extends ChangeNotifier {
                 )
         : _darkColors;
     return MiuixThemeData(
+      useSchemeSemanticColors: _useSchemeSemanticColors,
       mode: _colorSchemeMode,
       seedColor: dynamic ? generatedSeed : _miuixDefaultFixedKeyColor,
       paletteStyle: _paletteStyle,
@@ -907,6 +912,7 @@ class MiuixThemeData extends ThemeExtension<MiuixThemeData> {
     this.enableGlass = true,
     this.glassIntensity = MiuixGlassIntensity.standard,
     this.enableSquircle = true,
+    this.useSchemeSemanticColors = false,
   });
 
   /// Builds the default Miuix theme from a seed color.
@@ -992,6 +998,10 @@ class MiuixThemeData extends ThemeExtension<MiuixThemeData> {
   /// Enables squircle-like shapes by default where widgets support them.
   final bool enableSquircle;
 
+  /// 使用调用方显式 ColorScheme 的语义色，不要求启用 Monet。
+  /// 默认 false 保留原生固定色表兼容；自定义原色主题可显式开启。
+  final bool useSchemeSemanticColors;
+
   /// Resolves the color scheme for a platform brightness.
   ColorScheme schemeFor(Brightness platformBrightness) {
     final systemBrightness = brightnessOverride ?? platformBrightness;
@@ -1019,15 +1029,12 @@ class MiuixThemeData extends ThemeExtension<MiuixThemeData> {
     // particular, its onSecondary value is unsuitable for the white switch
     // thumb used by the original light palette. Only generated Monet palettes
     // should derive their semantic roles from the resolved scheme.
-    final semanticColors = switch (mode) {
-      MiuixColorMode.monetSystem ||
-      MiuixColorMode.monetLight ||
-      MiuixColorMode.monetDark => MiuixSemanticColors.fromScheme(scheme),
-      _ =>
-        scheme.brightness == Brightness.dark
-            ? const MiuixSemanticColors.dark()
-            : const MiuixSemanticColors.light(),
-    };
+    // 自定义 ColorScheme 与莫奈是不同来源，不能为了使用前者而强制重新调色。
+    final semanticColors = useSchemeSemanticColors || isDynamicColor
+        ? MiuixSemanticColors.fromScheme(scheme)
+        : scheme.brightness == Brightness.dark
+        ? const MiuixSemanticColors.dark()
+        : const MiuixSemanticColors.light();
     final buttonShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(radius.md),
     );
@@ -1155,6 +1162,7 @@ class MiuixThemeData extends ThemeExtension<MiuixThemeData> {
     bool? enableGlass,
     MiuixGlassIntensity? glassIntensity,
     bool? enableSquircle,
+    bool? useSchemeSemanticColors,
   }) {
     return MiuixThemeData(
       mode: mode ?? this.mode,
@@ -1174,6 +1182,8 @@ class MiuixThemeData extends ThemeExtension<MiuixThemeData> {
       enableGlass: enableGlass ?? this.enableGlass,
       glassIntensity: glassIntensity ?? this.glassIntensity,
       enableSquircle: enableSquircle ?? this.enableSquircle,
+      useSchemeSemanticColors:
+          useSchemeSemanticColors ?? this.useSchemeSemanticColors,
     );
   }
 
@@ -1200,6 +1210,9 @@ class MiuixThemeData extends ThemeExtension<MiuixThemeData> {
       enableGlass: t < 0.5 ? enableGlass : other.enableGlass,
       glassIntensity: t < 0.5 ? glassIntensity : other.glassIntensity,
       enableSquircle: t < 0.5 ? enableSquircle : other.enableSquircle,
+      useSchemeSemanticColors: t < 0.5
+          ? useSchemeSemanticColors
+          : other.useSchemeSemanticColors,
     );
   }
 }

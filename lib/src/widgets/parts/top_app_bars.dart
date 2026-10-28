@@ -90,6 +90,15 @@ class MiuixTopAppBarState extends ChangeNotifier {
   double _heightOffsetLimit;
   double _heightOffset;
   double _contentOffset;
+  // 布局内先同步字段，公开通知等待安全阶段；不能让下一次写入读到旧高度。
+  bool _pendingReplaceNotification = false;
+
+  // 显式写入已发布全部最新字段时，消费旧的待发布标记。
+  // 帧后不能把同一份值再次当成尚未发送的新状态。
+  void _publishChangedState() {
+    _pendingReplaceNotification = false;
+    notifyListeners();
+  }
 
   double get heightOffsetLimit => _heightOffsetLimit;
 
@@ -99,7 +108,7 @@ class MiuixTopAppBarState extends ChangeNotifier {
     if (next == _heightOffsetLimit && nextHeight == _heightOffset) return;
     _heightOffsetLimit = next;
     _heightOffset = nextHeight;
-    notifyListeners();
+    _publishChangedState();
   }
 
   double get heightOffset => _heightOffset;
@@ -108,7 +117,7 @@ class MiuixTopAppBarState extends ChangeNotifier {
     final next = _coerceHeight(value);
     if (next == _heightOffset) return;
     _heightOffset = next;
-    notifyListeners();
+    _publishChangedState();
   }
 
   double get contentOffset => _contentOffset;
@@ -117,7 +126,7 @@ class MiuixTopAppBarState extends ChangeNotifier {
     final next = value.isFinite ? value : 0.0;
     if (next == _contentOffset) return;
     _contentOffset = next;
-    notifyListeners();
+    _publishChangedState();
   }
 
   double get collapsedFraction {
@@ -144,19 +153,28 @@ class MiuixTopAppBarState extends ChangeNotifier {
     required double heightOffsetLimit,
     required double heightOffset,
     required double contentOffset,
+    bool notify = true,
   }) {
     final nextLimit = math.min(0.0, heightOffsetLimit);
     final nextHeight = _coerceHeight(heightOffset, limit: nextLimit);
     final nextContent = contentOffset.isFinite ? contentOffset : 0.0;
     if (nextLimit == _heightOffsetLimit &&
         nextHeight == _heightOffset &&
-        nextContent == _contentOffset) {
+        nextContent == _contentOffset &&
+        (!notify || !_pendingReplaceNotification)) {
       return;
     }
     _heightOffsetLimit = nextLimit;
     _heightOffset = nextHeight;
     _contentOffset = nextContent;
-    notifyListeners();
+    // 仅延迟订阅通知，字段先保持一致；公开 setter 的普通同步合同不变。
+    // 同值请求不能清除已有待发布标记，否则帧后通知会丢失。
+    if (!notify) {
+      // 字段已经一致，帧后即使值未再变化，也仍须发布一次真实变更。
+      _pendingReplaceNotification = true;
+      return;
+    }
+    _publishChangedState();
   }
 }
 
@@ -638,10 +656,11 @@ class MiuixTopAppBarScrollBehavior extends ChangeNotifier {
     _hasExplicitCollapseState = true;
     _collapseFraction = nextFraction;
     _contentOffset = nextContent;
-    notifyListeners();
+    _notifyStateAndListeners();
   }
 
-  void _syncHoistedState() {
+  // 把当前字段与通知时点分开控制，不让布局保护造成共享状态滞后。
+  void _syncHoistedState({bool notify = true}) {
     if (_syncingHoistedState) return;
     _syncingHoistedState = true;
     state._replace(
@@ -650,6 +669,7 @@ class MiuixTopAppBarScrollBehavior extends ChangeNotifier {
           ? 0
           : -_collapseFraction * _collapseExtent,
       contentOffset: _contentOffset,
+      notify: notify,
     );
     _syncingHoistedState = false;
   }
@@ -661,6 +681,9 @@ class MiuixTopAppBarScrollBehavior extends ChangeNotifier {
     // 复用既有帧后通道，读取最新值并遵守 dispose，避免保存一份迟到旧状态。
     if (SchedulerBinding.instance.schedulerPhase ==
         SchedulerPhase.persistentCallbacks) {
+      // 延迟的是通知，不是共享状态本身；后续公开 setter 必须读到本次高度。
+      // 否则先恢复折叠再恢复内容距离时，会把旧的展开高度重新写回控制器。
+      _syncHoistedState(notify: false);
       _scheduleListenerNotification();
       return;
     }

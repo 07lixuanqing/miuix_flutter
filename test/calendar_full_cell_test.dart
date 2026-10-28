@@ -70,7 +70,22 @@ void main() {
         expect(todayRect.width, greaterThan(80));
         expect(target(today).color!.a, closeTo(.10, .01));
         expect((target(today).border as Border).top.color.a, 1);
-        final number = find.text('${today.day}').first;
+        // 月初网格可能含上月同日，数字文本的第一个匹配不一定属于今天。
+        // 按组件真实的完整日期语义定位日期单元，保留原颜色和几何断言。
+        final todayLabel = MaterialLocalizations.of(
+          tester.element(frame(today)),
+        ).formatFullDate(today);
+        final number = find.descendant(
+          of: find.byWidgetPredicate(
+            (w) =>
+                w is Semantics &&
+                w.properties.button == true &&
+                w.properties.label == todayLabel,
+          ),
+          matching: find.text('${today.day}'),
+        );
+        // 不能靠 first 隐藏定位歧义，今天的单元只能给出一个日期数字。
+        expect(number, findsOneWidget);
         final numberRect = tester.getRect(number);
         final numberStyle = tester.widget<Text>(number).style!;
         expect(tester.widget<Text>(number).maxLines, 1);
