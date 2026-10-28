@@ -20,6 +20,8 @@ export 'src/theme/miuix_semantic_colors.dart';
 export 'src/theme/hyperos4_tokens.dart';
 export 'src/theme/miuix_theme.dart';
 export 'src/widgets/miuix_widgets.dart';
+// 长标题与正文共用视口，应用不再维护另一份固定头部弹窗布局。
+export 'src/widgets/miuix_dialog_scroll_body.dart';
 
 export 'src/icons/miuix_icon_theme.dart';
 export 'src/icons/miuix_icon_interaction.dart';

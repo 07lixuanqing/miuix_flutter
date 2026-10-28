@@ -6,7 +6,7 @@ publish_to: none
 # supplies a monotonic time-based build number and verifies the final package.
 # The release script refreshes this fallback to the final split APK code so a
 # later direct Flutter build can still replace the most recent test release.
-version: 1.2.1+30694000
+version: 1.2.1+30696000
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
