@@ -440,12 +440,16 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
             final scheme = Theme.of(context).colorScheme;
             // 显式前景与普通侧栏共用同一来源，不在展开后恢复另一种主色。
             final supplied = _MiuixNavigationRailColors.maybeOf(context);
+            // 展开动画消费同一主题层，不在终点换回实色主按钮样式。
+            final layers = sourceStyle
+                ? null
+                : MiuixAccentLayers.maybeOf(context);
             final tint = selected && supplied?.foreground != null
                 ? supplied!.foreground!
                 : sourceStyle
                 ? MiuixSemanticColors.of(context)['onSurfaceContainer']
                 : selected
-                ? scheme.primary
+                ? layers?.navigationForeground ?? scheme.primary
                 : scheme.onSurfaceVariant;
             final fontSize = _miuixLerpDouble(
               MiuixNavigationRailDefaults.labelFontSize,
@@ -479,7 +483,9 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
                   expandedSpacing,
             );
             final labelMax = _miuixLerpDouble(
-              supplied?.background == null ? width : math.max(0, width - 16),
+              supplied?.background == null && layers == null
+                  ? width
+                  : math.max(0, width - 16),
               expandedLabelMax,
               progress,
             );
@@ -526,7 +532,8 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
               progress,
             );
             // 显式背景必须覆盖完整标签，白字不能落到胶囊外的浅色画布。
-            final explicitBackground = supplied?.background != null;
+            final explicitBackground =
+                supplied?.background != null || layers != null;
             final indicatorHeight = explicitBackground
                 ? height
                 : iconSize + indicatorPad * 2;
@@ -564,6 +571,7 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
 
             final indicatorBase = selected
                 ? supplied?.background ??
+                      layers?.navigationFill ??
                       (sourceStyle
                           ? theme.colorScheme.surfaceContainerHigh
                           : theme.colorScheme.primaryContainer.withValues(

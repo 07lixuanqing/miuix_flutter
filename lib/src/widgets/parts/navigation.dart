@@ -2046,12 +2046,19 @@ abstract final class MiuixTabRowDefaults {
     Color? selectedContentColor,
   }) {
     final semantic = MiuixSemanticColors.of(context);
+    // 页内 Tab 与分段选择共用轻选中角色，显式调用方颜色仍优先。
+    final layers = MiuixAccentLayers.maybeOf(context);
     return MiuixTabRowColors(
       backgroundColor: backgroundColor ?? semantic['surface'],
       contentColor: contentColor ?? semantic['onSurfaceVariantSummary'],
       selectedBackgroundColor:
-          selectedBackgroundColor ?? semantic['surfaceContainer'],
-      selectedContentColor: selectedContentColor ?? semantic['onBackground'],
+          selectedBackgroundColor ??
+          layers?.selectionFill ??
+          semantic['surfaceContainer'],
+      selectedContentColor:
+          selectedContentColor ??
+          layers?.selectionForeground ??
+          semantic['onBackground'],
     );
   }
 }

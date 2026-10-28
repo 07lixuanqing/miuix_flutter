@@ -37,13 +37,16 @@ abstract final class MiuixSegmentedControlDefaults {
 
   static MiuixSegmentedControlColors colors(BuildContext context) {
     final semantic = MiuixSemanticColors.of(context);
+    // 同一个轻选中层供分段和芯片使用，普通轨道继续保持中性。
+    final layers = MiuixAccentLayers.maybeOf(context);
     return MiuixSegmentedControlColors(
       background: semantic['surfaceContainerHigh'],
-      selectedBackground: semantic['surface'],
+      selectedBackground: layers?.selectionFill ?? semantic['surface'],
       foreground: semantic['onSurfaceSecondary'],
-      selectedForeground: semantic['onSurface'],
-      disabledForeground: semantic['disabledOnSurface'],
-      border: semantic['dividerLine'],
+      selectedForeground: layers?.selectionForeground ?? semantic['onSurface'],
+      disabledForeground:
+          layers?.disabledForeground ?? semantic['disabledOnSurface'],
+      border: layers?.outline ?? semantic['dividerLine'],
     );
   }
 }
@@ -227,119 +230,195 @@ class _MiuixSegmentedControlState<T> extends State<MiuixSegmentedControl<T>> {
     final outerCorner = requestedCorner.isFinite
         ? math.max(0.0, requestedCorner)
         : themeCorner;
-    final segmentHeight = math.max(0.0, outerHeight - 6);
     final segmentCorner = math.max(0.0, outerCorner - 3);
     final motion = reduceMotion
         ? Duration.zero
         : hyperOs4.segmentedControlMotion;
-    final row = Row(
-      mainAxisSize: widget.expanded ? MainAxisSize.max : MainAxisSize.min,
-      children: <Widget>[
-        for (var index = 0; index < widget.values.length; index++)
-          if (widget.expanded)
-            Expanded(
-              child: _MiuixSegmentButton<T>(
-                label: widget.labelBuilder(widget.values[index]),
-                selected: widget.selected.contains(widget.values[index]),
-                enabled: _enabledAt(index),
-                colors: palette,
-                height: segmentHeight,
-                cornerRadius: segmentCorner,
-                motion: motion,
-                paintSelection: !widget.expanded || widget.multipleSelection,
-                onTap: () {
-                  _focusNode.requestFocus();
-                  _select(index);
-                },
-              ),
-            )
-          else
-            Padding(
-              padding: EdgeInsetsDirectional.only(
-                end: index == widget.values.length - 1 ? 0 : 3,
-              ),
-              child: _MiuixSegmentButton<T>(
-                label: widget.labelBuilder(widget.values[index]),
-                selected: widget.selected.contains(widget.values[index]),
-                enabled: _enabledAt(index),
-                colors: palette,
-                height: segmentHeight,
-                cornerRadius: segmentCorner,
-                motion: motion,
-                paintSelection: true,
-                onTap: () {
-                  _focusNode.requestFocus();
-                  _select(index);
-                },
-              ),
-            ),
-      ],
-    );
-    final selectedIndex = widget.values.indexWhere(widget.selected.contains);
-    final Widget segments =
-        widget.expanded && !widget.multipleSelection && selectedIndex >= 0
-        ? LayoutBuilder(
-            builder: (context, constraints) {
-              final segmentWidth = constraints.maxWidth / widget.values.length;
-              return SizedBox(
-                height: segmentHeight,
-                child: Stack(
-                  children: <Widget>[
-                    AnimatedPositionedDirectional(
-                      key: const ValueKey('miuix-segmented-selection'),
-                      duration: motion,
-                      curve: Curves.easeOutCubic,
-                      start: selectedIndex * segmentWidth,
-                      top: 0,
-                      bottom: 0,
-                      width: segmentWidth,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: palette.selectedBackground,
-                          border: Border.all(color: palette.border, width: .5),
-                          borderRadius: BorderRadius.circular(segmentCorner),
-                        ),
-                      ),
-                    ),
-                    row,
-                  ],
+    // 默认独立项可能各占112宽；窄卡片中应自动等分，不能溢出到控件外。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.maxWidth.isFinite;
+        final available = bounded
+            ? math.max(0.0, constraints.maxWidth - 8)
+            : double.infinity;
+        // source/显式高度是紧凑单行契约，不能自动改纵排后撑破固定父高。
+        // 只有默认自适应模式可通过纵向排列换取完整标签宽度。
+        final vertical =
+            widget.height == null &&
+            bounded &&
+            available / widget.values.length < 58;
+        final expanded =
+            bounded &&
+            (widget.expanded ||
+                available <
+                    widget.values.length * 112 +
+                        (widget.values.length - 1) * 3);
+        final width = vertical
+            ? available
+            : expanded
+            ? available / widget.values.length
+            : 112.0;
+        var segmentHeight = math.max(0.0, outerHeight - 6);
+        if (widget.height == null) {
+          // 默认高度按全文测量；显式 source/零高度覆盖仍保留原兼容契约。
+          for (final value in widget.values) {
+            final painter = TextPainter(
+              text: TextSpan(
+                text: widget.labelBuilder(value),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
-              );
+              ),
+              textScaler: MediaQuery.textScalerOf(context),
+              textDirection: Directionality.of(context),
+            )..layout(maxWidth: math.max(1, width - 26));
+            segmentHeight = math.max(
+              segmentHeight,
+              painter.height.ceilToDouble() + 12,
+            );
+            painter.dispose();
+          }
+        }
+        // 极窄宿主采用纵向排列，箭头键、焦点和选中状态仍由原逻辑处理。
+        final row = Flex(
+          direction: vertical ? Axis.vertical : Axis.horizontal,
+          crossAxisAlignment: vertical
+              ? CrossAxisAlignment.stretch
+              : CrossAxisAlignment.center,
+          mainAxisSize: expanded && !vertical
+              ? MainAxisSize.max
+              : MainAxisSize.min,
+          children: <Widget>[
+            for (var index = 0; index < widget.values.length; index++)
+              if (expanded && !vertical)
+                Expanded(
+                  child: _MiuixSegmentButton<T>(
+                    label: widget.labelBuilder(widget.values[index]),
+                    selected: widget.selected.contains(widget.values[index]),
+                    enabled: _enabledAt(index),
+                    colors: palette,
+                    height: segmentHeight,
+                    cornerRadius: segmentCorner,
+                    motion: motion,
+                    paintSelection: !expanded || widget.multipleSelection,
+                    onTap: () {
+                      _focusNode.requestFocus();
+                      _select(index);
+                    },
+                  ),
+                )
+              else
+                Padding(
+                  padding: EdgeInsetsDirectional.only(
+                    end: vertical || index == widget.values.length - 1 ? 0 : 3,
+                    bottom: vertical && index != widget.values.length - 1
+                        ? 3
+                        : 0,
+                  ),
+                  child: _MiuixSegmentButton<T>(
+                    label: widget.labelBuilder(widget.values[index]),
+                    selected: widget.selected.contains(widget.values[index]),
+                    enabled: _enabledAt(index),
+                    colors: palette,
+                    height: segmentHeight,
+                    cornerRadius: segmentCorner,
+                    motion: motion,
+                    paintSelection: true,
+                    onTap: () {
+                      _focusNode.requestFocus();
+                      _select(index);
+                    },
+                  ),
+                ),
+          ],
+        );
+        final selectedIndex = widget.values.indexWhere(
+          widget.selected.contains,
+        );
+        final Widget segments =
+            expanded &&
+                !vertical &&
+                !widget.multipleSelection &&
+                selectedIndex >= 0
+            ? LayoutBuilder(
+                builder: (context, constraints) {
+                  final segmentWidth =
+                      constraints.maxWidth / widget.values.length;
+                  return SizedBox(
+                    height: segmentHeight,
+                    child: Stack(
+                      children: <Widget>[
+                        AnimatedPositionedDirectional(
+                          key: const ValueKey('miuix-segmented-selection'),
+                          duration: motion,
+                          curve: Curves.easeOutCubic,
+                          start: selectedIndex * segmentWidth,
+                          top: 0,
+                          bottom: 0,
+                          width: segmentWidth,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: palette.selectedBackground,
+                              border: Border.all(
+                                color: palette.border,
+                                width: .5,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                segmentCorner,
+                              ),
+                            ),
+                          ),
+                        ),
+                        row,
+                      ],
+                    ),
+                  );
+                },
+              )
+            : row;
+        final surface = MiuixSurface(
+          radius: outerCorner,
+          color: widget.glass ? Colors.transparent : palette.background,
+          border: BorderSide(color: palette.border, width: .5),
+          glass: widget.glass,
+          glassBlur: widget.glassBlur ?? hyperOs4.segmentedControlBlur,
+          glassOpacity:
+              widget.glassOpacity ?? hyperOs4.segmentedControlTintOpacity,
+          child: Padding(padding: const EdgeInsets.all(3), child: segments),
+        );
+        return Semantics(
+          container: true,
+          enabled: widget.enabled,
+          label: widget.semanticLabel,
+          child: Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.arrowLeft): _SegmentMoveIntent(
+                -1,
+              ),
+              SingleActivator(LogicalKeyboardKey.arrowUp): _SegmentMoveIntent(
+                -1,
+              ),
+              SingleActivator(LogicalKeyboardKey.arrowRight):
+                  _SegmentMoveIntent(1),
+              SingleActivator(LogicalKeyboardKey.arrowDown): _SegmentMoveIntent(
+                1,
+              ),
             },
-          )
-        : row;
-    final surface = MiuixSurface(
-      radius: outerCorner,
-      color: widget.glass ? Colors.transparent : palette.background,
-      border: BorderSide(color: palette.border, width: .5),
-      glass: widget.glass,
-      glassBlur: widget.glassBlur ?? hyperOs4.segmentedControlBlur,
-      glassOpacity: widget.glassOpacity ?? hyperOs4.segmentedControlTintOpacity,
-      child: Padding(padding: const EdgeInsets.all(3), child: segments),
-    );
-    return Semantics(
-      container: true,
-      enabled: widget.enabled,
-      label: widget.semanticLabel,
-      child: Shortcuts(
-        shortcuts: const <ShortcutActivator, Intent>{
-          SingleActivator(LogicalKeyboardKey.arrowLeft): _SegmentMoveIntent(-1),
-          SingleActivator(LogicalKeyboardKey.arrowUp): _SegmentMoveIntent(-1),
-          SingleActivator(LogicalKeyboardKey.arrowRight): _SegmentMoveIntent(1),
-          SingleActivator(LogicalKeyboardKey.arrowDown): _SegmentMoveIntent(1),
-        },
-        child: Actions(
-          actions: <Type, Action<Intent>>{
-            _SegmentMoveIntent: CallbackAction<_SegmentMoveIntent>(
-              onInvoke: (intent) {
-                _move(intent.delta);
-                return null;
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                _SegmentMoveIntent: CallbackAction<_SegmentMoveIntent>(
+                  onInvoke: (intent) {
+                    _move(intent.delta);
+                    return null;
+                  },
+                ),
               },
+              child: Focus(focusNode: _focusNode, child: surface),
             ),
-          },
-          child: Focus(focusNode: _focusNode, child: surface),
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -405,8 +484,9 @@ class _MiuixSegmentButton<T> extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            // 默认控件已按真实全文预留高度，不再用省略号隐藏选项。
+            textAlign: TextAlign.center,
+            softWrap: true,
             style: theme.textTheme.labelLarge?.copyWith(
               color: foreground,
               fontSize: 13,

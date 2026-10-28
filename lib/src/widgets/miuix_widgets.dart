@@ -23,6 +23,7 @@ import '../platform/miuix_device_tilt.dart';
 import '../platform/miuix_haptics.dart';
 import '../platform/miuix_window_insets.dart';
 import '../theme/miuix_semantic_colors.dart';
+import '../theme/miuix_accent_layers.dart';
 import '../theme/miuix_theme.dart';
 
 part 'parts/core.dart';

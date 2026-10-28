@@ -159,10 +159,13 @@ abstract final class MiuixButtonDefaults {
     Color? disabledContentColor,
   }) {
     final semantic = MiuixSemanticColors.of(context);
+    // 强按钮仍保持原主色；禁用状态使用宿主提供的中性配对层。
+    final layers = MiuixAccentLayers.maybeOf(context);
     return MiuixButtonColors(
       color: color ?? semantic[primary ? 'primary' : 'secondaryVariant'],
       disabledColor:
           disabledColor ??
+          layers?.disabledFill ??
           semantic[primary
               ? 'disabledPrimaryButton'
               : 'disabledSecondaryVariant'],
@@ -171,6 +174,7 @@ abstract final class MiuixButtonDefaults {
           semantic[primary ? 'onPrimary' : 'onSecondaryVariant'],
       disabledContentColor:
           disabledContentColor ??
+          layers?.disabledForeground ??
           semantic[primary
               ? 'disabledOnPrimaryButton'
               : 'disabledOnSecondaryVariant'],

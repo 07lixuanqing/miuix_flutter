@@ -72,14 +72,21 @@ abstract final class MiuixChipDefaults {
   /// Resolves colors without inheriting Material Chip defaults.
   static MiuixChipColors colors(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // 芯片是轻选中项；宿主提供层次时不再借用主按钮实色。
+    final layers = MiuixAccentLayers.maybeOf(context);
     return MiuixChipColors(
       background: scheme.secondaryContainer.withValues(alpha: .88),
       foreground: scheme.onSecondaryContainer,
-      selectedBackground: scheme.primaryContainer,
-      selectedForeground: scheme.onPrimaryContainer,
-      disabledBackground: scheme.surfaceContainerHighest.withValues(alpha: .6),
-      disabledForeground: scheme.onSurface.withValues(alpha: .38),
-      outline: scheme.outlineVariant.withValues(alpha: .42),
+      selectedBackground: layers?.selectionFill ?? scheme.primaryContainer,
+      selectedForeground:
+          layers?.selectionForeground ?? scheme.onPrimaryContainer,
+      // 禁用状态中性化，边界使用单独弱层，不再独立估算主色浓度。
+      disabledBackground:
+          layers?.disabledFill ??
+          scheme.surfaceContainerHighest.withValues(alpha: .6),
+      disabledForeground:
+          layers?.disabledForeground ?? scheme.onSurface.withValues(alpha: .38),
+      outline: layers?.outline ?? scheme.outlineVariant.withValues(alpha: .42),
     );
   }
 }
@@ -256,7 +263,11 @@ class MiuixChip extends StatelessWidget {
                   showIndication: enabled,
                   child: SizedBox.square(
                     dimension: MiuixChipDefaults.deleteTargetSize,
-                    child: MiuixThemedIcon(Icons.close, size: 16, color: foreground),
+                    child: MiuixThemedIcon(
+                      Icons.close,
+                      size: 16,
+                      color: foreground,
+                    ),
                   ),
                 ),
               ),

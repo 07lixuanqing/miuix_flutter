@@ -590,8 +590,13 @@ class _MiuixNavigationRailItemState extends State<_MiuixNavigationRailItem>
     final scheme = theme.colorScheme;
     final semanticBase = MiuixSemanticColors.of(context)['onSurfaceContainer'];
     final supplied = _MiuixNavigationRailColors.maybeOf(context);
+    // 普通侧栏和底部胶囊共用配对层，source 仍保留历史语义。
+    final layers = widget.sourceStyle
+        ? null
+        : MiuixAccentLayers.maybeOf(context);
     final selectedContent =
         supplied?.foreground ??
+        layers?.navigationForeground ??
         (theme.brightness == Brightness.dark
             ? scheme.onPrimaryContainer
             : scheme.primary);
@@ -753,6 +758,7 @@ class _MiuixNavigationRailItemState extends State<_MiuixNavigationRailItem>
                       : ShapeDecoration(
                           color: widget.selected
                               ? supplied?.background ??
+                                    layers?.navigationFill ??
                                     scheme.primary.withValues(
                                       alpha: selectionTintOpacity,
                                     )

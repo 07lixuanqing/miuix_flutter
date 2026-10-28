@@ -745,14 +745,37 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
         ? itemHeight.clamp(48.0, 96.0).toDouble()
         : explicitItemExtent;
     final safeItemWidth = explicitItemWidth ?? minimumItemWidth;
-    final safeItemHeight =
-        explicitItemHeight ?? hyperOs4.floatingNavigationItemHeight;
+    // 所有目的地按最长真实标签预留相同高度，选中加粗不会改变整排基线。
+    final labelHeight = _floatingNavigationLabelHeight(
+      context,
+      items,
+      math.max(1, safeItemWidth - 8),
+      displayMode,
+    );
+    final labelFont =
+        displayMode == MiuixFloatingNavigationBarDisplayMode.textOnly
+        ? 14.0
+        : 12.0;
+    // 基线同样向外取整，普通字号不因不足一像素的误差抬高整条胶囊。
+    final baseLabelHeight = (labelFont * 1.16 * pixelRatio).ceil() / pixelRatio;
+    final captionExtra = math.max(0.0, labelHeight - baseLabelHeight);
+    // 两倍字号与长中文只增加高度，不再用 FittedBox 缩小文字。
+    final requiredHeight =
+        displayMode == MiuixFloatingNavigationBarDisplayMode.iconOnly
+        ? 48.0
+        : displayMode == MiuixFloatingNavigationBarDisplayMode.textOnly
+        ? labelHeight + 28
+        : 24 + hyperOs4.floatingNavigationContentSpacing + labelHeight + 8;
+    final safeItemHeight = math.max(
+      explicitItemHeight ?? hyperOs4.floatingNavigationItemHeight,
+      requiredHeight,
+    );
     final safeSelectionInset = selectionHorizontalInset.isFinite
         ? selectionHorizontalInset.clamp(0.0, safeItemWidth / 2).toDouble()
         : hyperOs4.floatingNavigationSelectionInset;
     final safeSelectionHeight = selectionHeight.isFinite
         ? selectionHeight.clamp(0.0, safeItemHeight).toDouble()
-        : hyperOs4.floatingNavigationSelectionHeight;
+        : hyperOs4.floatingNavigationSelectionHeight + captionExtra;
     final sourceDragSelectionInset = dragSelectionInset.isFinite
         ? dragSelectionInset
         : hyperOs4.floatingNavigationDragSelectionInset;
@@ -765,14 +788,18 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
     // One material recipe for every caller: the lens is distinct without a
     // second opaque panel. Hue-preserving contrast avoids gray active labels.
     final panelColor = color ?? scheme.surface;
+    // 成对层次优先于默认推导，显式组件参数仍保留最高优先级。
+    final accentLayers = MiuixAccentLayers.maybeOf(context);
     final panelOpacity =
         backgroundOpacity ??
         MiuixGlassOptics.navigation.resolveOpacity(
-          hyperOs4.floatingNavigationTintOpacity,
+          accentLayers?.navigationPanelOpacity ??
+              hyperOs4.floatingNavigationTintOpacity,
           miuixTheme.glassIntensity,
         );
     final lensColor =
         selectedBackgroundColor ??
+        accentLayers?.navigationFill ??
         (selectedIndicatorColor == null
             ? Color.lerp(
                 panelColor,
@@ -786,6 +813,7 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
               ));
     final accentColor =
         selectedIndicatorColor ??
+        accentLayers?.navigationForeground ??
         _floatingNavigationAccent(
           scheme.primary,
           lensColor,
@@ -802,8 +830,9 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
       displayMode: displayMode,
       itemWidth: safeItemWidth,
       itemHeight: safeItemHeight,
+      labelHeight: labelHeight,
       itemSpacing: sourceItemSpacing,
-      surfaceHeight: sourceSurfaceMinHeight,
+      surfaceHeight: sourceSurfaceMinHeight + captionExtra,
       selectionInset: safeSelectionInset,
       selectionHeight: safeSelectionHeight,
       surfaceCornerRadius: effectiveCornerRadius,
@@ -847,6 +876,7 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
                 ),
           opacity:
               backgroundOpacity?.clamp(0.0, 1.0) ??
+              accentLayers?.navigationPanelOpacity ??
               hyperOs4.floatingNavigationTintOpacity,
           useGlobalIntensity: backgroundOpacity == null,
           enabled: miuixTheme.enableGlass,
@@ -990,6 +1020,7 @@ class _MiuixFloatingNavigationContent extends StatefulWidget {
     required this.displayMode,
     required this.itemWidth,
     required this.itemHeight,
+    required this.labelHeight,
     required this.itemSpacing,
     required this.surfaceHeight,
     required this.selectionInset,
@@ -1010,6 +1041,7 @@ class _MiuixFloatingNavigationContent extends StatefulWidget {
   final MiuixFloatingNavigationBarDisplayMode displayMode;
   final double itemWidth;
   final double itemHeight;
+  final double labelHeight;
   final double itemSpacing;
   final double surfaceHeight;
   final double selectionInset;
@@ -1333,6 +1365,7 @@ class _MiuixFloatingNavigationContentState
               displayMode: displayMode,
               itemWidth: itemWidth,
               itemHeight: itemHeight,
+              labelHeight: widget.labelHeight,
               contentSpacing: contentSpacing,
               indicatorColor: selectedTint,
               unselectedColor: widget.unselectedContentColor,
@@ -1600,27 +1633,33 @@ class _MiuixFloatingShadowPaintScope extends InheritedWidget {
   }
 }
 
-/// Uses the source Latin measurement for an untranslated layout label.
-TextStyle _floatingSourceLayoutStyle(
-  BuildContext context, {
-  required double fontSize,
-  required bool translated,
-}) {
-  final base = Theme.of(context).textTheme.labelMedium ?? const TextStyle();
-  // Compose and SkParagraph do not produce exactly the same Roboto Bold
-  // advances. The discrepancy also changes slightly between the source's
-  // 12sp icon-label mode and its 14sp text-only mode, so keep the two measured
-  // conversion factors instead of allowing the wider mode to accumulate a
-  // several-pixel capsule error across all five destinations.
-  final sourceAdvanceScale = fontSize <= 12 ? 11.846 / 12 : 11.827 / 12;
-  return base.copyWith(
-    fontSize: translated ? fontSize * sourceAdvanceScale : fontSize,
-    fontWeight: FontWeight.w700,
-    fontFamily: translated ? 'Roboto' : base.fontFamily,
-    fontFamilyFallback: translated
-        ? const ['sans-serif']
-        : base.fontFamilyFallback,
-  );
+// 使用最终文字和真实字号测量，不再用隐藏的英文标签冒充中文宽高。
+double _floatingNavigationLabelHeight(
+  BuildContext context,
+  List<MiuixNavigationItem> items,
+  double width,
+  MiuixFloatingNavigationBarDisplayMode mode,
+) {
+  if (mode == MiuixFloatingNavigationBarDisplayMode.iconOnly) return 0;
+  final fontSize = mode == MiuixFloatingNavigationBarDisplayMode.textOnly
+      ? 14.0
+      : 12.0;
+  final style = (Theme.of(context).textTheme.labelMedium ?? const TextStyle())
+      .copyWith(fontSize: fontSize, fontWeight: FontWeight.w700, height: 1.16);
+  var height = MediaQuery.textScalerOf(context).scale(fontSize) * 1.16;
+  for (final item in items) {
+    // 按最大字重测量，拖动预览中的加粗动画也不会突然多出一行。
+    final painter = TextPainter(
+      text: TextSpan(text: item.label, style: style),
+      textScaler: MediaQuery.textScalerOf(context),
+      textDirection: Directionality.of(context),
+    )..layout(maxWidth: width);
+    height = math.max(height, painter.height);
+    painter.dispose();
+  }
+  // 向外取整到物理像素，避免小数密度把最后一行裁掉一部分。
+  final ratio = MediaQuery.devicePixelRatioOf(context);
+  return (height * ratio).ceil() / ratio;
 }
 
 class _MiuixFloatingNavigationBarItem extends StatefulWidget {
@@ -1639,6 +1678,7 @@ class _MiuixFloatingNavigationBarItem extends StatefulWidget {
     required this.displayMode,
     required this.itemWidth,
     required this.itemHeight,
+    required this.labelHeight,
     required this.contentSpacing,
     this.indicatorColor,
     this.unselectedColor,
@@ -1657,6 +1697,7 @@ class _MiuixFloatingNavigationBarItem extends StatefulWidget {
   final MiuixFloatingNavigationBarDisplayMode displayMode;
   final double itemWidth;
   final double itemHeight;
+  final double labelHeight;
   final double contentSpacing;
   final Color? indicatorColor;
   final Color? unselectedColor;
@@ -1738,39 +1779,14 @@ class _MiuixFloatingNavigationBarItemState
         color: tint,
         fontSize: fontSize,
         fontWeight: selectedWeight,
+        height: 1.16,
       );
-      // A localized example may replace the complete text theme with a CJK
-      // family. The invisible layout label still represents the untranslated
-      // source label, so measure it with the source platform's Latin face;
-      // otherwise Noto CJK makes the floating pill about 34dp too wide.
-      // SkParagraph's Roboto Bold advances are about 8.3% wider than Compose's
-      // platform paragraph. The shared calibrated style is also used by the
-      // parent to preserve the source total width before equal distribution.
-      final sourceLayoutStyle = _floatingSourceLayoutStyle(
-        context,
-        fontSize: fontSize,
-        translated: widget.layoutLabel != null,
-      );
-      final sourceLineHeight = _miuixRoundLogicalDimension(
-        MediaQuery.textScalerOf(context).scale(fontSize) * 1.16,
-        pixelRatio,
-      );
-      return SizedBox(
-        height: sourceLineHeight,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Opacity(
-              opacity: 0,
-              child: Text(
-                widget.layoutLabel ?? widget.label,
-                maxLines: 1,
-                style: sourceLayoutStyle,
-              ),
-            ),
-            Text(widget.label, maxLines: 1, style: style),
-          ],
-        ),
+      // 全文自然换行，颜色动画与文字测量共用相同字体和行高。
+      return Text(
+        widget.label,
+        style: style,
+        textAlign: TextAlign.center,
+        softWrap: true,
       );
     }
 
@@ -1829,10 +1845,7 @@ class _MiuixFloatingNavigationBarItemState
 
     Widget iconAndTextContent() => Builder(
       builder: (context) {
-        final labelHeight = _miuixRoundLogicalDimension(
-          MediaQuery.textScalerOf(context).scale(12) * 1.16,
-          pixelRatio,
-        );
+        final labelHeight = widget.labelHeight;
         final contentHeight =
             iconTextSize + widget.contentSpacing + labelHeight;
         final contentTop = (widget.itemHeight - contentHeight) / 2;
@@ -1853,8 +1866,9 @@ class _MiuixFloatingNavigationBarItemState
               SizedBox(
                 width: math.max(0, widget.itemWidth - 8),
                 height: labelHeight,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
+                // 多行与单行标签共用第一行基线，不在预留高度中上下漂移。
+                child: Align(
+                  alignment: Alignment.topCenter,
                   child: stableLabel(fontSize: 12),
                 ),
               ),
@@ -1879,10 +1893,7 @@ class _MiuixFloatingNavigationBarItemState
               vertical: textVerticalPadding,
               horizontal: textHorizontalPadding,
             ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: stableLabel(fontSize: 14),
-            ),
+            child: Center(child: stableLabel(fontSize: 14)),
           ),
         },
       ),

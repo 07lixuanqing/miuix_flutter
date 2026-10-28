@@ -17,6 +17,8 @@ export 'src/platform/miuix_haptics.dart';
 export 'src/platform/miuix_platform.dart';
 export 'src/platform/miuix_window_insets.dart';
 export 'src/theme/miuix_semantic_colors.dart';
+// 宿主可提供成对的层次，通用控件不各自猜测透明度与白字。
+export 'src/theme/miuix_accent_layers.dart';
 export 'src/theme/hyperos4_tokens.dart';
 export 'src/theme/miuix_theme.dart';
 export 'src/widgets/miuix_widgets.dart';
