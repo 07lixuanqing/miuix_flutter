@@ -299,6 +299,23 @@ class _MiuixTextFieldState extends State<MiuixTextField>
   bool get selectionEnabled =>
       widget.enabled &&
       (_editableKey.currentState?.widget.selectionEnabled ?? true);
+
+  // 选择手势不自动提供辅助功能动作，读屏激活仍须接回同一个编辑状态。
+  // 只读允许获得选择焦点，禁用不得接纳焦点；两者都不能请求可编辑键盘。
+  void _activateAccessibleInput() {
+    if (!widget.enabled) return;
+    if (!_focusNode.hasFocus) _focusNode.requestFocus();
+    if (widget.readOnly) return;
+    // 第一次辅助功能激活可能没有光标，按标准输入框将光标放在草稿末尾。
+    // 已有合法选区保持原样，不改写文本或输入法组合内容。
+    if (!_controller.selection.isValid) {
+      _controller.selection = TextSelection.collapsed(
+        offset: _controller.text.length,
+      );
+    }
+    _editableKey.currentState?.requestKeyboard();
+  }
+
   MiuixTextFieldLayoutResult? _lastLayoutResult;
   MiuixTextFieldLayoutResult? _pendingLayoutResult;
   bool _layoutReportScheduled = false;
@@ -744,36 +761,46 @@ class _MiuixTextFieldState extends State<MiuixTextField>
                                 0,
                                 insideMargin.top / 2 * labelProgress,
                               ),
-                              child: EditableText(
-                                key: _editableKey,
-                                // 选择识别器统一负责点击与长按，避免两个识别器互相抢占。
-                                // 框架在每次有效点击结束时都会请求键盘，已有焦点也能重新弹出。
-                                rendererIgnoresPointer: true,
-                                controller: _controller,
-                                focusNode: _focusNode,
-                                style: sourceTextStyle.copyWith(
-                                  color: resolvedTextColor,
-                                ),
-                                strutStyle: sourceStrutStyle,
-                                cursorColor: cursorColor,
-                                backgroundCursorColor: semantic['onSurface'],
-                                readOnly: widget.readOnly,
-                                obscureText: widget.obscureText,
-                                autofillHints: widget.autofillHints,
-                                onChanged: _handleChanged,
-                                onSubmitted: widget.onSubmitted,
-                                minLines: minLines,
-                                maxLines: maxLines,
-                                keyboardType:
-                                    widget.keyboardType ??
-                                    (maxLines == 1
-                                        ? TextInputType.text
-                                        : TextInputType.multiline),
-                                textInputAction: widget.textInputAction,
-                                inputFormatters: widget.inputFormatters,
-                                scrollController: widget.scrollController,
-                                selectionColor: borderColor.withValues(
-                                  alpha: .24,
+                              // 动作绑定在编辑器附近，和密码标记、值及选区共用语义节点。
+                              // 装饰层不新增一个可点击的假输入框，读屏无需重复聚焦两次。
+                              child: Semantics(
+                                onTap: widget.enabled && !widget.readOnly
+                                    ? _activateAccessibleInput
+                                    : null,
+                                onFocus: widget.enabled
+                                    ? _activateAccessibleInput
+                                    : null,
+                                child: EditableText(
+                                  key: _editableKey,
+                                  // 选择识别器统一负责点击与长按，避免两个识别器互相抢占。
+                                  // 框架在每次有效点击结束时都会请求键盘，已有焦点也能重新弹出。
+                                  rendererIgnoresPointer: true,
+                                  controller: _controller,
+                                  focusNode: _focusNode,
+                                  style: sourceTextStyle.copyWith(
+                                    color: resolvedTextColor,
+                                  ),
+                                  strutStyle: sourceStrutStyle,
+                                  cursorColor: cursorColor,
+                                  backgroundCursorColor: semantic['onSurface'],
+                                  readOnly: widget.readOnly,
+                                  obscureText: widget.obscureText,
+                                  autofillHints: widget.autofillHints,
+                                  onChanged: _handleChanged,
+                                  onSubmitted: widget.onSubmitted,
+                                  minLines: minLines,
+                                  maxLines: maxLines,
+                                  keyboardType:
+                                      widget.keyboardType ??
+                                      (maxLines == 1
+                                          ? TextInputType.text
+                                          : TextInputType.multiline),
+                                  textInputAction: widget.textInputAction,
+                                  inputFormatters: widget.inputFormatters,
+                                  scrollController: widget.scrollController,
+                                  selectionColor: borderColor.withValues(
+                                    alpha: .24,
+                                  ),
                                 ),
                               ),
                             ),
