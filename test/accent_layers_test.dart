@@ -70,6 +70,191 @@ MiuixAccentLayers fixture() => MiuixAccentLayers(
 // 未提供新扩展的默认控件仍由全库兼容测试覆盖。
 // 本文件的颜色常量仅为测试资料，不是厂商设计参数。
 void main() {
+  // 普通、折叠和展开侧栏共同消费可用文字角色。
+  // 同时覆盖明暗与双倍字号，检查实际段落绘制。
+  for (final dark in [false, true]) {
+    for (final scale in [1.0, 2.0]) {
+      for (final mode in ['classic', 'collapsed', 'expanded']) {
+        testWidgets('rail calibrated ink $dark $scale $mode', (tester) async {
+          // 平板视口保留真实侧栏宽度，不缩小字形规避布局问题。
+          tester.view.physicalSize = const Size(1000, 1000);
+          tester.view.devicePixelRatio = 1;
+          // 恢复测试视口，防止后续普通控件误用平板布局。
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          // 文字与镜片分别处理Alpha，两个明暗端点均为实色。
+          final ink = dark ? const Color(0xffeeeeee) : const Color(0xff303030);
+          final layers = fixture().copyWith(
+            colors: {'navigationUnselectedForeground': ink},
+          );
+          // 初始目标覆盖三条绘制路径，状态只归本用例所有。
+          final state = mode == 'classic'
+              ? null
+              : MiuixNavigationRailState(
+                  initialValue: mode == 'expanded'
+                      ? MiuixNavigationRailValue.expanded
+                      : MiuixNavigationRailValue.collapsed,
+                );
+          addTearDown(() => state?.dispose());
+          // 深浅画布与文字端点一起切换，不能只验证白色背景。
+          final brightness = dark ? Brightness.dark : Brightness.light;
+          final data = MiuixThemeData.defaults(
+            mode: dark ? MiuixColorMode.dark : MiuixColorMode.light,
+          );
+          // 保留已有主题扩展，玻璃与语义表面沿正式查询链读取。
+          final material = data.materialTheme(brightness);
+          await tester.pumpWidget(
+            MiuixTheme(
+              data: data,
+              child: MaterialApp(
+                theme: material.copyWith(
+                  extensions: [...material.extensions.values, layers],
+                ),
+                // 系统字号作用于文字测量，不能整体缩放截图。
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(scale)),
+                  child: child!,
+                ),
+                home: Scaffold(
+                  body: Row(
+                    children: [
+                      MiuixNavigationRail(
+                        state: state,
+                        selectedIndex: 0,
+                        // 有效回调保持可用态，未选目的地不能画成禁用灰字。
+                        onDestinationSelected: (_) {},
+                        items: const [
+                          MiuixNavigationItem(
+                            icon: Icon(Icons.home),
+                            label: '首页',
+                          ),
+                          MiuixNavigationItem(
+                            icon: Icon(Icons.task),
+                            label: '任务',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          // 等待展开弹簧结束，最终帧不应退回另一套默认文字色。
+          // 精确读取字形颜色，发现先取角色再乘0.4的隐蔽退化。
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.text('任务'),
+          );
+          expect(paragraph.text.style!.color, ink);
+          expect(paragraph.text.style!.color!.a, 1);
+          // 原本可用的未选项必须保持不透明，不等同于禁用态。
+          // 字号变大仍需完整显示，颜色修复不能牺牲文字可读性。
+          expect(paragraph.didExceedMaxLines, isFalse);
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+  }
+  test('optional navigation ink survives old to new theme interpolation', () {
+    // 可选槽位不能加入旧构造器的强制字段集合。
+    // 这条契约保证其他应用只升级依赖时不会启动失败。
+    // 旧宿主仍可不提供新角色，不能升级控件库后直接构造失败。
+    // 本组只检查显示协议，不由组件库推断宿主的主题来源。
+    final previous = fixture();
+    // null保留旧宿主的选择权，库不能擅自换成固定主题色。
+    expect(previous.navigationUnselectedForeground, isNull);
+    // 新宿主给出校准文字后，主题过渡不能先从透明文字开始。
+    final next = previous.copyWith(
+      // 只有新前景发生变化，其余配对角色沿旧快照保留。
+      colors: {'navigationUnselectedForeground': const Color(0xff303030)},
+    );
+    expect(
+      previous.lerp(next, .5).navigationUnselectedForeground,
+      // 中间帧保持实色，不以半透明白字作为兼容回退。
+      const Color(0xff303030),
+    );
+  });
+
+  // Flutter回归不替代真实手机的玻璃合成，设备结果另行验收。
+  for (final intensity in MiuixGlassIntensity.values) {
+    // 遍历枚举本身，新增档位后不能默默漏掉可读性回归。
+    testWidgets('calibrated navigation keeps its readable floor $intensity', (
+      tester,
+    ) async {
+      // 使用真实主题和玻璃组件，覆盖五档强度而不是只测默认档。
+      final data = MiuixThemeData.defaults(
+        // 使用浅色画布让最高强度的消失问题更容易暴露。
+        mode: MiuixColorMode.light,
+      ).copyWith(glassIntensity: intensity);
+      final layers = fixture().copyWith(
+        // 最低遮罩故意大于旧档位乘积，验证约束真的进入控件。
+        navigationPanelOpacity: .78,
+        colors: {'navigationUnselectedForeground': const Color(0xff303030)},
+      );
+      // copyWith的扩展集合是替换语义，必须保留真实强度与语义扩展。
+      final material = data.materialTheme(Brightness.light);
+      // 保留主题数据扩展，否则测试会误用standard档而造成假通过。
+      // 角色与玻璃主题同时注入，避免测试在错误上下文读取默认强度。
+      await tester.pumpWidget(
+        // 正式主题宿主与Material主题同时存在，沿真实组件查询链。
+        MiuixTheme(
+          data: data,
+          child: MaterialApp(
+            theme: material.copyWith(
+              // 追加层次，不能覆盖掉前面注入的强度与语义颜色。
+              extensions: [...material.extensions.values, layers],
+            ),
+            home: Scaffold(
+              // 屏幕只含本地控件，没有账号、业务网络或测试外部状态。
+              body: Center(
+                child: MiuixFloatingNavigationBar(
+                  // 两个目的地同时覆盖选中和未选状态。
+                  items: const [
+                    MiuixNavigationItem(icon: Icon(Icons.home), label: '首页'),
+                    MiuixNavigationItem(icon: Icon(Icons.task), label: '任务'),
+                  ],
+                  selectedIndex: 0,
+                  // 提供有效回调保持控件可用，不把禁用灰字当未选色。
+                  onDestinationSelected: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // 等待主题过渡结束，避免把暂态颜色当成最终校准值。
+      // 面板只能在最低衬底上增强，不能被第二次强度乘法降低。
+      final glass = tester.widget<MiuixGlass>(
+        // 精确定位负责面板材质的节点，不检查外部透明容器。
+        find.byKey(const ValueKey('floating-navigation-glass')),
+      );
+      expect(glass.opacity, greaterThanOrEqualTo(.78));
+      // 同时检查实际缩放开关，防止属性正确但绘制又被乘一次。
+      expect(glass.useGlobalIntensity, isFalse);
+      // 关闭重复透明度缩放不等于关闭模糊强度，五档仍保留各自光学效果。
+      expect(
+        glass.blur,
+        // 所有档位继续用统一光学配方，修透明度不能丢掉动态模糊。
+        MiuixGlassOptics.navigation.resolveBlur(
+          data.hyperOs4.floatingNavigationBlur,
+          intensity,
+        ),
+      );
+      // 未选项也必须使用提供的实色前景，不能按禁用态再次降低Alpha。
+      expect(
+        tester.widget<Text>(find.text('任务')).style!.color,
+        // 从真正Text样式检查，单看上游Map不足以证明接线完成。
+        layers.navigationUnselectedForeground,
+      );
+      expect(tester.takeException(), isNull);
+      // 每档独立挂载，上一档的状态和动画不能影响下一档结论。
+    });
+  }
+
   test(
     'accent layers are immutable and copy and interpolate complete pairs',
     () {

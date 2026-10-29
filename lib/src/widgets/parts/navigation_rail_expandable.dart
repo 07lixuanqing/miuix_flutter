@@ -450,7 +450,10 @@ class _MiuixExpandableNavigationRailItem extends StatelessWidget {
                 ? MiuixSemanticColors.of(context)['onSurfaceContainer']
                 : selected
                 ? layers?.navigationForeground ?? scheme.primary
-                : scheme.onSurfaceVariant;
+                // 折叠与展开必须使用同一未选前景，动画不能恢复低对比灰字。
+                // 该角色已由宿主按实际表面校准，渲染时不再降低透明度。
+                : layers?.navigationUnselectedForeground ??
+                      scheme.onSurfaceVariant;
             final fontSize = _miuixLerpDouble(
               MiuixNavigationRailDefaults.labelFontSize,
               MiuixNavigationRailDefaults.expandedLabelFontSize,

@@ -58,6 +58,11 @@ class MiuixAccentLayers extends ThemeExtension<MiuixAccentLayers> {
   /// 配对镜片的文字与图标，不能再施加镜片的透明度。
   Color get navigationForeground => colors['navigationForeground']!;
 
+  /// 校准后的中性导航文字；旧调用未提供时仍由组件原语义方案承接。
+  /// 可用的未选项不是禁用状态，不能额外叠加禁用透明度。
+  Color? get navigationUnselectedForeground =>
+      colors['navigationUnselectedForeground'];
+
   /// 普通选中项的轻染色表面，区别于完整主操作填充。
   Color get selectionFill => colors['selectionFill']!;
 
@@ -109,8 +114,14 @@ class MiuixAccentLayers extends ThemeExtension<MiuixAccentLayers> {
     // 使用 Flutter 的主题动画，不持有另外一套独立动画控制器。
     return MiuixAccentLayers(
       colors: {
-        for (final name in names)
-          name: Color.lerp(colors[name], other.colors[name], t)!,
+        // 可选的新角色同样参与动画，不能在切换主题时短暂丢回旧灰字。
+        // 可选角色缺少一端时保留已有色，不让导航文字从透明淡入。
+        for (final name in {...colors.keys, ...other.colors.keys})
+          name: Color.lerp(
+            colors[name] ?? other.colors[name],
+            other.colors[name] ?? colors[name],
+            t,
+          )!,
       },
       navigationPanelOpacity:
           navigationPanelOpacity +

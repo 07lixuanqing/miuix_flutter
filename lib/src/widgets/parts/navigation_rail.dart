@@ -606,14 +606,18 @@ class _MiuixNavigationRailItemState extends State<_MiuixNavigationRailItem>
         ? semanticBase
         : widget.selected
         ? selectedContent
-        : scheme.onSurfaceVariant;
+        : layers?.navigationUnselectedForeground ?? scheme.onSurfaceVariant;
+    // 已校准的可用文字不能再乘旧的未选透明度，否则会退回禁用灰字。
+    // 未安装角色扩展的宿主仍保留原有样式及按压反馈。
+    final calibratedInk =
+        !widget.selected && layers?.navigationUnselectedForeground != null;
     // Current state-null NavigationRailItem has one medium-weight tint and a
     // rectangular MiuixIndication. Preserve the old alpha/weight behavior only
     // for the explicit Flutter compatibility display modes/data constructor.
     final sourceCurrentClassic =
         widget.sourceSemantics &&
         widget.displayMode == MiuixNavigationRailDisplayMode.iconAndText;
-    final tint = sourceCurrentClassic
+    final tint = sourceCurrentClassic || calibratedInk
         ? base
         : _pressed
         ? base.withValues(

@@ -790,13 +790,24 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
     final panelColor = color ?? scheme.surface;
     // 成对层次优先于默认推导，显式组件参数仍保留最高优先级。
     final accentLayers = MiuixAccentLayers.maybeOf(context);
+    final resolvedPanelOpacity = MiuixGlassOptics.navigation.resolveOpacity(
+      // 先解析一次全局档位，后续只做可读性约束，不再次乘强度。
+      accentLayers?.navigationPanelOpacity ??
+          hyperOs4.floatingNavigationTintOpacity,
+      miuixTheme.glassIntensity,
+    );
+    // 应用提供的成对色依赖最低衬底，强玻璃不能再把它乘到近乎透明。
+    // 显式组件覆盖仍优先；没有扩展的调用保持原五档材质契约。
     final panelOpacity =
+        // 显式覆盖属于调用者契约，仍允许其独立决定最终透明度。
         backgroundOpacity ??
-        MiuixGlassOptics.navigation.resolveOpacity(
-          accentLayers?.navigationPanelOpacity ??
-              hyperOs4.floatingNavigationTintOpacity,
-          miuixTheme.glassIntensity,
-        );
+        (accentLayers == null
+            ? resolvedPanelOpacity
+            : math.max(
+                // 成对颜色的最低背景只可增加，不能被最高玻璃档削弱。
+                accentLayers.navigationPanelOpacity,
+                resolvedPanelOpacity,
+              ));
     final lensColor =
         selectedBackgroundColor ??
         accentLayers?.navigationFill ??
@@ -844,7 +855,12 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
           : hyperOs4.floatingNavigationMotion,
       selectedIndicatorColor: accentColor,
       selectedBackgroundColor: lensColor,
-      unselectedContentColor: unselectedContentColor ?? scheme.onSurfaceVariant,
+      // 未选项仍可操作，使用校准中性前景而不是禁用灰字。
+      unselectedContentColor:
+          // 宿主未给新角色时保留旧方案，避免破坏既有第三方调用。
+          unselectedContentColor ??
+          accentLayers?.navigationUnselectedForeground ??
+          scheme.onSurfaceVariant,
     );
     final safeElevation = shadowElevation.isFinite
         ? math.max(0.0, shadowElevation)
@@ -868,17 +884,22 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
           key: const ValueKey('floating-navigation-glass'),
           // HyperOS 4 uses a softer, more translucent floating material. The
           // five-level controller scales this complete calibrated recipe.
-          blur: backgroundOpacity == null
+          // 已解析的配方直接交给玻璃，未提供扩展时继续由玻璃处理档位。
+          // 两条路径都只缩放一次模糊，不改变导航命中区或布局。
+          blur: backgroundOpacity == null && accentLayers == null
               ? hyperOs4.floatingNavigationBlur
               : MiuixGlassOptics.navigation.resolveBlur(
                   hyperOs4.floatingNavigationBlur,
                   miuixTheme.glassIntensity,
                 ),
-          opacity:
-              backgroundOpacity?.clamp(0.0, 1.0) ??
-              accentLayers?.navigationPanelOpacity ??
-              hyperOs4.floatingNavigationTintOpacity,
-          useGlobalIntensity: backgroundOpacity == null,
+          // 已在上面处理强度与可读下限；MiuixGlass不能再缩放第二次。
+          // 模糊强度仍随全局档位变化，不以完全实底替代玻璃。
+          opacity: accentLayers != null
+              ? panelOpacity
+              : backgroundOpacity?.clamp(0.0, 1.0) ??
+                    hyperOs4.floatingNavigationTintOpacity,
+          useGlobalIntensity: backgroundOpacity == null && accentLayers == null,
+          // 关闭重复缩放不等于强制打开玻璃，系统／主题的禁用仍生效。
           enabled: miuixTheme.enableGlass,
           color: panelColor,
           radius: effectiveCornerRadius,
