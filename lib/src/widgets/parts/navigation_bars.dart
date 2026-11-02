@@ -815,9 +815,11 @@ class MiuixFloatingNavigationBar extends StatelessWidget {
             ? Color.lerp(
                 panelColor,
                 scheme.primary,
-                scheme.brightness == Brightness.dark ? .20 : .28,
+                // 无宿主角色时同样保留明确选中染色，避免浅色镜片消失。
+                // 仅局部镜片加深，外壳材质与宿主显式覆盖保持独立。
+                scheme.brightness == Brightness.dark ? .40 : .44,
               )!.withValues(
-                alpha: scheme.brightness == Brightness.dark ? .48 : .38,
+                alpha: scheme.brightness == Brightness.dark ? .78 : .80,
               )
             : selectedIndicatorColor!.withValues(
                 alpha: scheme.brightness == Brightness.dark ? .22 : .14,

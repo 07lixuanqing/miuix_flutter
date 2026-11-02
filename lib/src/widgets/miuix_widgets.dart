@@ -27,6 +27,7 @@ import '../theme/miuix_accent_layers.dart';
 import '../theme/miuix_theme.dart';
 
 part 'parts/core.dart';
+part 'parts/shared_view_transition.dart';
 part 'parts/surface.dart';
 part 'parts/surface_clip.dart';
 part 'parts/squircle_surface.dart';

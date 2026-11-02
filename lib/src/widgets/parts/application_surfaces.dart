@@ -195,6 +195,11 @@ class MiuixChip extends StatelessWidget {
         (variant == MiuixChipVariant.filter ||
             variant == MiuixChipVariant.choice) &&
         icon == null;
+    // 内容表面已经负责裁剪；交互层只裁剪按压提示，不再次裁剪整颗芯片。
+    // 两次抗锯齿会削弱细描边，普通圆角还会切掉 G2 连续圆角的两侧。
+    final ShapeBorder feedbackShape = miuixIsSquircleEnabled(context)
+        ? const MiuixCapsuleBorder()
+        : const StadiumBorder();
     final content = ConstrainedBox(
       constraints: const BoxConstraints(
         minHeight: MiuixChipDefaults.minimumHeight,
@@ -231,8 +236,9 @@ class MiuixChip extends StatelessWidget {
             Flexible(
               child: Text(
                 label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                // 长操作名称保留全文；有限宽度下换行并自然增高。
+                // 禁用态与选择态使用相同布局，不因状态切换裁掉文字。
+                softWrap: true,
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: foreground,
                   fontWeight: FontWeight.w600,
@@ -295,7 +301,10 @@ class MiuixChip extends StatelessWidget {
         label: label,
         child: MiuixPressable(
           onTap: interactive ? _activate : null,
-          borderRadius: BorderRadius.circular(999),
+          // 反馈层跟随表面形状；表面拥有最终裁剪和完整描边。
+          // 避免在完整边框外再次叠加 ClipRRect。
+          shape: feedbackShape,
+          contentAlreadyClipped: true,
           feedbackType: MiuixPressFeedbackType.sink,
           showIndication: interactive,
           child: MiuixSurface(
@@ -305,7 +314,9 @@ class MiuixChip extends StatelessWidget {
             glassOpacity: glassOpacity ?? hyperOs4.chipTintOpacity,
             showGlassSpecular: false,
             radius: 999,
-            border: BorderSide(color: palette.outline, width: .5),
+            // 使用一个逻辑像素，曲线和直线都保留可读的连续边界。
+            // 沿用主题 outline，不给禁用动作新增可用态颜色。
+            border: BorderSide(color: palette.outline, width: 1),
             child: content,
           ),
         ),

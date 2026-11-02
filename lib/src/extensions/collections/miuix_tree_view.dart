@@ -673,9 +673,9 @@ class _MiuixTreeViewState<T extends Object> extends State<MiuixTreeView<T>> {
                     }
                   : null,
               padding: const EdgeInsetsDirectional.only(end: 12),
-              child: SizedBox(
-                height: MiuixTreeViewDefaults.rowExtent,
-                child: Row(
+              child: MiuixTreeRowLayout(
+                leading: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     SizedBox(
                       width: 40,
@@ -687,13 +687,17 @@ class _MiuixTreeViewState<T extends Object> extends State<MiuixTreeView<T>> {
                                       child: MiuixInfiniteProgressIndicator(),
                                     )
                                   : error != null
-                                  ? MiuixThemedIcon(MiuixExtensionGlyphs.refresh)
+                                  ? MiuixThemedIcon(
+                                      MiuixExtensionGlyphs.refresh,
+                                    )
                                   : expanded
                                   ? const MiuixExtensionChevron(
                                       direction:
                                           MiuixExtensionChevronDirection.down,
                                     )
-                                  : MiuixThemedIcon(MiuixExtensionGlyphs.chevronForward),
+                                  : MiuixThemedIcon(
+                                      MiuixExtensionGlyphs.chevronForward,
+                                    ),
                               onPressed: node.enabled && !loading
                                   ? () {
                                       _focusNode.requestFocus();
@@ -718,23 +722,18 @@ class _MiuixTreeViewState<T extends Object> extends State<MiuixTreeView<T>> {
                       ),
                       const SizedBox(width: 10),
                     ],
-                    Expanded(
-                      child:
-                          content ??
-                          Text(
-                            node.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: foreground,
-                                  fontWeight: selected ? FontWeight.w600 : null,
-                                ),
-                          ),
-                    ),
-                    if (node.trailing != null) node.trailing!,
                   ],
                 ),
+                content:
+                    content ??
+                    Text(
+                      node.label,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: foreground,
+                        fontWeight: selected ? FontWeight.w600 : null,
+                      ),
+                    ),
+                trailing: node.trailing,
               ),
             ),
           );
@@ -847,4 +846,87 @@ class _TreeMoveIntent extends Intent {
 class _TreeHorizontalIntent extends Intent {
   const _TreeHorizontalIntent(this.towardEnd);
   final bool towardEnd;
+}
+
+/// 树形列表的自适应内容和操作布局。
+/// 标题与说明由调用方提供，控件只安排可用宽度和自然高度。
+/// 同步目录和异步树复用此布局，避免各自隐藏大字号内容。
+class MiuixTreeRowLayout extends StatelessWidget {
+  /// 最低行高保持原树行节奏，长文字可以继续向下展开。
+  /// leading 用于展开键与图标，trailing 用于操作按钮。
+  const MiuixTreeRowLayout({
+    super.key,
+    this.leading,
+    required this.content,
+    this.trailing,
+  });
+
+  /// 前导区不拉伸，保留原来的点击范围。
+  final Widget? leading;
+
+  /// 内容获得剩余宽度，不设置行数或省略号。
+  final Widget content;
+
+  /// 窄屏大字时移到内容下方，不遮挡或挤掉标题。
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, bounds) {
+      // 这是排版阈值，不参与任务或奖励的操作资格。
+      // 字号放大时提高同排所需宽度，普通宽度保持紧凑。
+      final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+      // 阈值是本库排版选择，不宣称为系统官方尺寸。
+      // 没有尾部操作时无需生成空的第二行。
+      final stacked = trailing != null && bounds.maxWidth < 280 * scale;
+      return ConstrainedBox(
+        // 原行高作为下限，不再把大字号和多行内容裁进固定高度。
+        // 图标与控件仍按原点击范围布局，不通过缩字适配。
+        constraints: const BoxConstraints(
+          minHeight: MiuixTreeViewDefaults.rowExtent,
+        ),
+        // 纵向内边距同时服务单排与双排，避免状态切换时顶边跳动。
+        // 图标、标题与按钮仍由原组件各自处理点击和焦点。
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            // 无固定最大高度，列表会为真实多行内容分配空间。
+            // 普通短行仍由最低行高维持原有节奏。
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // leading 只占其自然宽度，不随正文一起伸展。
+              // 操作换行时前导图标继续与标题属于同一内容行。
+              Row(
+                children: [
+                  ?leading,
+                  // 标题列获得实际剩余宽度，换行由内容组件决定。
+                  // 不能在公共行布局中强加最大行数。
+                  Expanded(child: content),
+                  // 同排时保留文字与操作的明确间隔。
+                  if (!stacked && trailing != null)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(start: 8),
+                      child: trailing!,
+                    ),
+                ],
+              ),
+              if (stacked)
+                Padding(
+                  // 纵排操作靠行尾，标题和全部说明继续自然换行。
+                  // RTL 使用方向对齐，不把按钮固定到物理右侧。
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    // 对齐只影响位置，不包裹额外手势或语义层。
+                    child: trailing,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

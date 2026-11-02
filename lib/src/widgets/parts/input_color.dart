@@ -710,8 +710,81 @@ class _MiuixTextFieldState extends State<MiuixTextField>
                       );
                       painter.dispose();
                       _reportTextLayout(layoutResult);
+                      // 按最终可用宽度与系统字号测量装饰文字；不能靠单行省略隐藏操作条件。
+                      // 普通短标签仍采用原单行尺寸和弹簧，只为实际放不下的内容增加空间。
+                      final animatedLabelStyle = sourceTextStyle.copyWith(
+                        color: labelColor,
+                        fontSize: ui.lerpDouble(17, 10, labelProgress),
+                        fontWeight: FontWeight.w500,
+                      );
+                      final paintsLabel = showsInlineLabel || floatingLabel;
+                      final paintsHint =
+                          !hasText &&
+                          widget.label == null &&
+                          widget.hint != null;
+                      final decorationText = paintsLabel
+                          ? widget.label
+                          : paintsHint
+                          ? widget.hint
+                          : null;
+                      // 标签与提示沿用各自原有字体；测量器与实际 Text 使用相同缩放和方向。
+                      // 提示保留正文 strut，标签则和原 Text 一样不强制正文行高。
+                      final decorationStyle = paintsLabel
+                          ? animatedLabelStyle
+                          : sourceTextStyle;
+                      double decorationHeight = 0;
+                      var wrapsDecoration = false;
+                      double finalLabelHeight = 0;
+                      if (decorationText != null) {
+                        final decorationPainter = TextPainter(
+                          text: TextSpan(
+                            text: decorationText,
+                            style: decorationStyle,
+                          ),
+                          textDirection: direction,
+                          textScaler: MediaQuery.textScalerOf(context),
+                          strutStyle: paintsHint ? sourceStrutStyle : null,
+                        )..layout(maxWidth: constraints.maxWidth);
+                        decorationHeight = decorationPainter.height;
+                        wrapsDecoration =
+                            decorationPainter.computeLineMetrics().length > 1;
+                        decorationPainter.dispose();
+                        // 即使只有一行，大字号浮动标签也可能超过原上下各半内距形成的带宽。
+                        // 用最终浮动字号判断适配需求，避免改变一倍字号短标签的正常动画几何。
+                        if (floatingLabel) {
+                          final finalPainter = TextPainter(
+                            text: TextSpan(
+                              text: decorationText,
+                              style: animatedLabelStyle.copyWith(fontSize: 10),
+                            ),
+                            textDirection: direction,
+                            textScaler: MediaQuery.textScalerOf(context),
+                          )..layout(maxWidth: constraints.maxWidth);
+                          finalLabelHeight = finalPainter.height;
+                          finalPainter.dispose();
+                        }
+                      }
+                      final needsReadableBand =
+                          wrapsDecoration ||
+                          (floatingLabel &&
+                              finalLabelHeight + 4 > insideMargin.top);
+                      // 额外四像素是可读布局的项目间距，不宣称来自原版官方尺寸。
+                      // 浮动标签与输入之间留开距离，空提示则只扩展整体可读高度。
+                      final decorationExtra = !needsReadableBand
+                          ? 0.0
+                          : floatingLabel
+                          ? math.max(
+                              0.0,
+                              decorationHeight +
+                                  4 -
+                                  insideMargin.top * labelProgress,
+                            )
+                          : math.max(
+                              0.0,
+                              decorationHeight - sourceLineHeight * lineCount,
+                            );
                       return SizedBox(
-                        height: sourceLineHeight * lineCount,
+                        height: sourceLineHeight * lineCount + decorationExtra,
                         child: Stack(
                           alignment: AlignmentDirectional.topStart,
                           clipBehavior: Clip.none,
@@ -720,15 +793,7 @@ class _MiuixTextFieldState extends State<MiuixTextField>
                               DefaultTextStyle(
                                 // The normal and floating labels share one spring
                                 // channel, exactly as TextField.kt does.
-                                style: sourceTextStyle.copyWith(
-                                  color: labelColor,
-                                  fontSize: ui.lerpDouble(
-                                    17,
-                                    10,
-                                    labelProgress,
-                                  ),
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                style: animatedLabelStyle,
                                 child: Transform.translate(
                                   offset: Offset(
                                     0,
@@ -736,8 +801,11 @@ class _MiuixTextFieldState extends State<MiuixTextField>
                                   ),
                                   child: Text(
                                     widget.label ?? '',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    // 只有实测需要多行才放开装饰文本，输入自身的行数约束不变。
+                                    maxLines: wrapsDecoration ? null : 1,
+                                    overflow: wrapsDecoration
+                                        ? TextOverflow.visible
+                                        : TextOverflow.ellipsis,
                                   ),
                                 ),
                               ),
@@ -747,8 +815,10 @@ class _MiuixTextFieldState extends State<MiuixTextField>
                               IgnorePointer(
                                 child: Text(
                                   widget.hint!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: wrapsDecoration ? null : 1,
+                                  overflow: wrapsDecoration
+                                      ? TextOverflow.visible
+                                      : TextOverflow.ellipsis,
                                   style: sourceTextStyle.copyWith(
                                     color:
                                         semantic['onSecondaryContainerVariant'],
@@ -759,8 +829,10 @@ class _MiuixTextFieldState extends State<MiuixTextField>
                             Transform.translate(
                               offset: Offset(
                                 0,
-                                insideMargin.top / 2 * labelProgress,
+                                insideMargin.top / 2 * labelProgress +
+                                    (floatingLabel ? decorationExtra : 0),
                               ),
+                              // 仅平移同一个编辑器，焦点、选区、密码语义与回调不复制。
                               // 动作绑定在编辑器附近，和密码标记、值及选区共用语义节点。
                               // 装饰层不新增一个可点击的假输入框，读屏无需重复聚焦两次。
                               child: Semantics(

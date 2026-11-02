@@ -14,6 +14,9 @@ dependencies:
     sdk: flutter
   # 1.2.0 requires meta ^1.18.1, while Flutter 3.44.1 pins meta 1.18.0.
   libmonet: 1.1.2
+  # 可变高度长列表按索引定位，不靠固定行高截断长标题。
+  # 固定版本用于复核Flutter升级后的布局和键盘行为。
+  super_sliver_list: 0.4.1
 
 dev_dependencies:
   flutter_test:

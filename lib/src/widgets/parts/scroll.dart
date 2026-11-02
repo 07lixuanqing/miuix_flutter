@@ -1435,8 +1435,9 @@ class MiuixSpringScrollPhysics extends ScrollPhysics {
     );
   }
 
-  @override
-  bool get allowImplicitScrolling => false;
+  // 弹簧仅改变用户拖动的边界响应，不能屏蔽框架的光标可见性请求。
+  // 键盘缩小 viewport 后，EditableText 通过 showOnScreen 揭示焦点光标。
+  // 继承父物理策略，也保留调用者明确禁用隐式滚动的配置。
 }
 
 /// Stateful explicit-Euler simulation copied from MIUIX `SpringEngine`.

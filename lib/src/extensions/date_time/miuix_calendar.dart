@@ -839,12 +839,55 @@ class _MiuixCalendarState extends State<MiuixCalendar> {
     // A trailing week that is entirely next month is dropped (Xiaomi calendar).
     final gridCellCount = ((coveredDays + 6) ~/ 7) * 7;
 
-    Widget content(double cellExtent) => Column(
+    // 按实际字形与系统缩放测量，不能用固定日期格挤压双位数。
+    final scaler = MediaQuery.textScalerOf(context);
+    final numberStyle = DefaultTextStyle.of(context).style.merge(
+      Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+    );
+    Size textSize(
+      String value,
+      TextStyle style, {
+      double width = double.infinity,
+    }) {
+      final painter = TextPainter(
+        text: TextSpan(text: value, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: scaler,
+      )..layout(maxWidth: width);
+      return painter.size;
+    }
+
+    final numberSize = textSize('30', numberStyle);
+    final weekStyle = DefaultTextStyle.of(
+      context,
+    ).style.merge(Theme.of(context).textTheme.labelMedium);
+    final weekdayHeight = math.max(
+      32.0,
+      textSize(orderedWeekdays.join(), weekStyle).height + 8,
+    );
+    // 大字号无法铺满七列时横向阅读，表头与格子始终一起移动。
+    // 月份标题与导航按钮留在外层，仍能随时切月。
+    Widget readableGrid(double width, Widget child) => LayoutBuilder(
+      builder: (context, constraints) {
+        final grid = SizedBox(width: width, child: child);
+        return width > constraints.maxWidth + .1
+            ? SingleChildScrollView(
+                key: const ValueKey('calendar-readable-grid'),
+                scrollDirection: Axis.horizontal,
+                child: grid,
+              )
+            : grid;
+      },
+    );
+
+    Widget content(double cellExtent, double gridWidth) => Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         if (widget.showHeader)
-          SizedBox(
-            height: 52,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 52),
             child: Row(
               children: <Widget>[
                 MiuixIconButton(
@@ -886,320 +929,349 @@ class _MiuixCalendarState extends State<MiuixCalendar> {
               ],
             ),
           ),
-        Row(
-          children: orderedWeekdays
-              .map(
-                (label) => Expanded(
-                  child: SizedBox(
-                    height: 32,
-                    child: Center(
-                      child: Text(
-                        label,
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(color: colors.secondaryForeground),
-                      ),
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-        GridView.builder(
-          // A nested calendar must not consume the route's status/navigation
-          // padding. Without an explicit zero value, GridView can inherit the
-          // primary scroll view and insert a large blank band above row one.
-          padding: EdgeInsets.zero,
-          primary: false,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            mainAxisExtent: cellExtent,
-          ),
-          itemCount: gridCellCount,
-          itemBuilder: (context, index) {
-            final date = gridStart.add(Duration(days: index));
-            final inMonth =
-                date.year == month.year && date.month == month.month;
-            final enabled =
-                _isEnabled(date) && (inMonth || widget.showAdjacentMonthDays);
-            final selected = _isSelected(date);
-            final isToday =
-                MiuixCalendarController.dateOnly(DateTime.now()) ==
-                MiuixCalendarController.dateOnly(date);
-            final rangeInterior = _isRangeInterior(date);
-            final range = _controller.state.selectedRange;
-            final rangeSelected = range?.contains(date) ?? false;
-            final completedRange = range != null && range.start != range.end;
-            final rangeStart = completedRange && range.start == date;
-            final rangeEnd = completedRange && range.end == date;
-            final fullCell = widget.fullCellSelection && !rangeSelected;
-            final BorderRadiusGeometry dayRadius = rangeInterior
-                ? BorderRadius.zero
-                : rangeStart
-                ? const BorderRadiusDirectional.only(
-                    topStart: Radius.circular(22),
-                    bottomStart: Radius.circular(22),
-                  )
-                : rangeEnd
-                ? const BorderRadiusDirectional.only(
-                    topEnd: Radius.circular(22),
-                    bottomEnd: Radius.circular(22),
-                  )
-                : BorderRadius.circular(widget.dayCornerRadius);
-            final Color? customDayFill = widget.dayBackgroundBuilder?.call(
-              date,
-              selected: selected,
-              enabled: enabled,
-              inMonth: inMonth,
-              isToday: isToday,
-            );
-            final Color dayFill;
-            final BoxBorder? dayBorder;
-            if (rangeInterior) {
-              dayFill = colors.rangeBackground;
-              dayBorder = null;
-            } else if (rangeStart || rangeEnd) {
-              // 区间端点保持实心，单日选择仍使用 HyperOS 描边。
-              // Range endpoints remain solid; single-day selection is outlined.
-              dayFill = colors.selectedBackground;
-              dayBorder = null;
-            } else if (fullCell) {
-              final tint = colors.selectedBackground.withValues(
-                alpha: _pressedDay == date
-                    ? .18
-                    : selected
-                    ? .10
-                    : 0,
-              );
-              dayFill = Color.alphaBlend(
-                tint,
-                customDayFill ?? Colors.transparent,
-              );
-              dayBorder = Border.all(
-                color: selected
-                    ? colors.selectedBackground
-                    : Colors.transparent,
-                width: 1.8,
-              );
-            } else if (!widget.hyperOsDayStyles) {
-              dayFill = selected
-                  ? colors.selectedBackground
-                  : Colors.transparent;
-              dayBorder = null;
-            } else if (customDayFill != null) {
-              // Holiday / workday cells keep their tint; selection becomes a
-              // primary outline so today's solid chip remains unique.
-              dayFill = customDayFill;
-              dayBorder = selected && !isToday
-                  ? Border.all(color: colors.selectedBackground, width: 1.8)
-                  : null;
-            } else if (isToday) {
-              dayFill = colors.selectedBackground;
-              dayBorder = null;
-            } else if (selected) {
-              dayFill = Colors.transparent;
-              dayBorder = Border.all(
-                color: colors.selectedBackground,
-                width: 1.8,
-              );
-            } else {
-              dayFill = Colors.transparent;
-              dayBorder = null;
-            }
-            final builtInForeground = !enabled
-                ? colors.disabledForeground
-                : rangeInterior
-                ? colors.rangeForeground ?? colors.foreground
-                : widget.hyperOsDayStyles
-                ? (isToday || (selected && customDayFill != null && isToday)
-                      ? colors.selectedForeground
-                      : selected
-                      ? colors.selectedBackground
-                      : isToday
-                      ? colors.selectedForeground
-                      : inMonth
-                      ? colors.foreground
-                      : colors.secondaryForeground)
-                : selected
-                ? colors.selectedForeground
-                : inMonth
-                ? colors.foreground
-                : colors.secondaryForeground;
-            // HyperOS: today always reads as white-on-primary; selected
-            // non-today keeps a dark number inside the outline.
-            final hyperOsForeground = widget.hyperOsDayStyles
-                ? (isToday
-                      ? colors.selectedForeground
-                      : selected
-                      ? colors.selectedBackground
-                      : inMonth
-                      ? colors.foreground
-                      : colors.secondaryForeground)
-                : null;
-            final foreground = fullCell
-                ? !enabled
-                      ? colors.disabledForeground
-                      : isToday
-                      ? colors.selectedBackground
-                      : widget.dayForegroundBuilder?.call(
-                              date,
-                              selected,
-                              enabled,
-                              inMonth,
-                            ) ??
-                            (selected
-                                ? colors.selectedBackground
-                                : inMonth
-                                ? colors.foreground
-                                : colors.secondaryForeground)
-                : (rangeStart || rangeEnd) && enabled
-                ? colors.selectedForeground
-                : rangeInterior && enabled
-                ? colors.rangeForeground ?? colors.foreground
-                : (enabled && !selected && !isToday
-                          ? widget.dayForegroundBuilder?.call(
-                              date,
-                              selected,
-                              enabled,
-                              inMonth,
-                            )
-                          : null) ??
-                      hyperOsForeground ??
-                      builtInForeground;
-            final highlightMargin = widget.dayHighlightMargin;
-            final separateHighlight =
-                !fullCell &&
-                widget.hyperOsDayStyles &&
-                !rangeSelected &&
-                highlightMargin != null &&
-                highlightMargin.isNonNegative &&
-                highlightMargin.horizontal.isFinite &&
-                highlightMargin.vertical.isFinite;
-            return Semantics(
-              button: true,
-              selected: selected,
-              focused:
-                  _focusNode.hasFocus &&
-                  _keyboardDate != null &&
-                  date == _keyboardDate,
-              enabled: enabled,
-              label: localizations.formatFullDate(date),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: enabled ? () => _activateDay(date) : null,
-                onTapDown: enabled && fullCell
-                    ? (_) => setState(() => _pressedDay = date)
-                    : null,
-                onTapUp: enabled && fullCell
-                    ? (_) => setState(() => _pressedDay = null)
-                    : null,
-                onTapCancel: enabled && fullCell
-                    ? () => setState(() => _pressedDay = null)
-                    : null,
-                child: LayoutBuilder(
-                  builder: (context, constraints) => Center(
-                    child: SizedBox(
-                      width: rangeSelected || fullCell
-                          ? constraints.maxWidth
-                          : math.min(
-                              MiuixCalendarDefaults.dayExtent,
-                              constraints.maxWidth,
-                            ),
-                      // Keep the paint/adornment plane in sync with the
-                      // resolved row height, including larger accessible rows.
-                      height: math.min(cellExtent, constraints.maxHeight),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Only inset the paint; lunar labels and corner
-                          // badges retain their space at larger text scales.
-                          Padding(
-                            padding: rangeSelected
-                                ? EdgeInsets.only(
-                                    top: widget.dayMargin.top,
-                                    bottom: widget.dayMargin.bottom,
-                                  )
-                                : widget.dayMargin,
-                            child: AnimatedContainer(
-                              key: fullCell
-                                  ? ValueKey(
-                                      'calendar-highlight-${date.year}-${date.month}-${date.day}',
-                                    )
-                                  : null,
-                              duration: reduceMotion
-                                  ? Duration.zero
-                                  : fullCell
-                                  ? const Duration(milliseconds: 180)
-                                  : hyperOs4.pickerStageMotion,
-                              curve: Curves.easeOutCubic,
-                              decoration: BoxDecoration(
-                                color: separateHighlight
-                                    ? customDayFill ?? Colors.transparent
-                                    : dayFill,
-                                border: separateHighlight ? null : dayBorder,
-                                borderRadius: dayRadius,
-                              ),
-                            ),
-                          ),
-                          if (separateHighlight && (isToday || selected))
-                            Padding(
-                              padding: highlightMargin,
-                              child: AnimatedContainer(
-                                key: ValueKey(
-                                  'calendar-highlight-${date.year}-${date.month}-${date.day}',
-                                ),
-                                duration: reduceMotion
-                                    ? Duration.zero
-                                    : hyperOs4.pickerStageMotion,
-                                curve: Curves.easeOutCubic,
-                                decoration: BoxDecoration(
-                                  color: isToday
-                                      ? colors.selectedBackground
-                                      : Colors.transparent,
-                                  border: isToday
-                                      ? null
-                                      : Border.all(
-                                          color: colors.selectedBackground,
-                                          width: 1.8,
-                                        ),
-                                  borderRadius: dayRadius,
-                                ),
-                              ),
-                            ),
-                          Align(
-                            alignment: widget.dayNumberAlignment,
+        readableGrid(
+          gridWidth,
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: orderedWeekdays
+                    .map(
+                      (label) => Expanded(
+                        child: SizedBox(
+                          height: weekdayHeight,
+                          child: Center(
                             child: Text(
-                              widget.showAdjacentMonthDays || inMonth
-                                  ? '${date.day}'
-                                  : '',
-                              maxLines: 1,
-                              softWrap: false,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: foreground,
-                                    fontWeight:
-                                        (selected || isToday) &&
-                                            widget.hyperOsDayStyles
-                                        ? FontWeight.w700
-                                        : selected
-                                        ? FontWeight.w600
-                                        : null,
-                                  ),
+                              label,
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(color: colors.secondaryForeground),
                             ),
                           ),
-                          if (widget.dayAdornmentBuilder case final builder?)
-                            IgnorePointer(
-                              child: builder(context, date, selected, enabled),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              GridView.builder(
+                // A nested calendar must not consume the route's status/navigation
+                // padding. Without an explicit zero value, GridView can inherit the
+                // primary scroll view and insert a large blank band above row one.
+                padding: EdgeInsets.zero,
+                primary: false,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  mainAxisExtent: cellExtent,
+                ),
+                itemCount: gridCellCount,
+                itemBuilder: (context, index) {
+                  final date = gridStart.add(Duration(days: index));
+                  final inMonth =
+                      date.year == month.year && date.month == month.month;
+                  final enabled =
+                      _isEnabled(date) &&
+                      (inMonth || widget.showAdjacentMonthDays);
+                  final selected = _isSelected(date);
+                  final isToday =
+                      MiuixCalendarController.dateOnly(DateTime.now()) ==
+                      MiuixCalendarController.dateOnly(date);
+                  final rangeInterior = _isRangeInterior(date);
+                  final range = _controller.state.selectedRange;
+                  final rangeSelected = range?.contains(date) ?? false;
+                  final completedRange =
+                      range != null && range.start != range.end;
+                  final rangeStart = completedRange && range.start == date;
+                  final rangeEnd = completedRange && range.end == date;
+                  final fullCell = widget.fullCellSelection && !rangeSelected;
+                  final BorderRadiusGeometry dayRadius = rangeInterior
+                      ? BorderRadius.zero
+                      : rangeStart
+                      ? const BorderRadiusDirectional.only(
+                          topStart: Radius.circular(22),
+                          bottomStart: Radius.circular(22),
+                        )
+                      : rangeEnd
+                      ? const BorderRadiusDirectional.only(
+                          topEnd: Radius.circular(22),
+                          bottomEnd: Radius.circular(22),
+                        )
+                      : BorderRadius.circular(widget.dayCornerRadius);
+                  final Color? customDayFill = widget.dayBackgroundBuilder
+                      ?.call(
+                        date,
+                        selected: selected,
+                        enabled: enabled,
+                        inMonth: inMonth,
+                        isToday: isToday,
+                      );
+                  final Color dayFill;
+                  final BoxBorder? dayBorder;
+                  if (rangeInterior) {
+                    dayFill = colors.rangeBackground;
+                    dayBorder = null;
+                  } else if (rangeStart || rangeEnd) {
+                    // 区间端点保持实心，单日选择仍使用 HyperOS 描边。
+                    // Range endpoints remain solid; single-day selection is outlined.
+                    dayFill = colors.selectedBackground;
+                    dayBorder = null;
+                  } else if (fullCell) {
+                    final tint = colors.selectedBackground.withValues(
+                      alpha: _pressedDay == date
+                          ? .18
+                          : selected
+                          ? .10
+                          : 0,
+                    );
+                    dayFill = Color.alphaBlend(
+                      tint,
+                      customDayFill ?? Colors.transparent,
+                    );
+                    dayBorder = Border.all(
+                      color: selected
+                          ? colors.selectedBackground
+                          : Colors.transparent,
+                      width: 1.8,
+                    );
+                  } else if (!widget.hyperOsDayStyles) {
+                    dayFill = selected
+                        ? colors.selectedBackground
+                        : Colors.transparent;
+                    dayBorder = null;
+                  } else if (customDayFill != null) {
+                    // Holiday / workday cells keep their tint; selection becomes a
+                    // primary outline so today's solid chip remains unique.
+                    dayFill = customDayFill;
+                    dayBorder = selected && !isToday
+                        ? Border.all(
+                            color: colors.selectedBackground,
+                            width: 1.8,
+                          )
+                        : null;
+                  } else if (isToday) {
+                    dayFill = colors.selectedBackground;
+                    dayBorder = null;
+                  } else if (selected) {
+                    dayFill = Colors.transparent;
+                    dayBorder = Border.all(
+                      color: colors.selectedBackground,
+                      width: 1.8,
+                    );
+                  } else {
+                    dayFill = Colors.transparent;
+                    dayBorder = null;
+                  }
+                  final builtInForeground = !enabled
+                      ? colors.disabledForeground
+                      : rangeInterior
+                      ? colors.rangeForeground ?? colors.foreground
+                      : widget.hyperOsDayStyles
+                      ? (isToday ||
+                                (selected && customDayFill != null && isToday)
+                            ? colors.selectedForeground
+                            : selected
+                            ? colors.selectedBackground
+                            : isToday
+                            ? colors.selectedForeground
+                            : inMonth
+                            ? colors.foreground
+                            : colors.secondaryForeground)
+                      : selected
+                      ? colors.selectedForeground
+                      : inMonth
+                      ? colors.foreground
+                      : colors.secondaryForeground;
+                  // HyperOS: today always reads as white-on-primary; selected
+                  // non-today keeps a dark number inside the outline.
+                  final hyperOsForeground = widget.hyperOsDayStyles
+                      ? (isToday
+                            ? colors.selectedForeground
+                            : selected
+                            ? colors.selectedBackground
+                            : inMonth
+                            ? colors.foreground
+                            : colors.secondaryForeground)
+                      : null;
+                  final foreground = fullCell
+                      ? !enabled
+                            ? colors.disabledForeground
+                            : isToday
+                            ? colors.selectedBackground
+                            : widget.dayForegroundBuilder?.call(
+                                    date,
+                                    selected,
+                                    enabled,
+                                    inMonth,
+                                  ) ??
+                                  (selected
+                                      ? colors.selectedBackground
+                                      : inMonth
+                                      ? colors.foreground
+                                      : colors.secondaryForeground)
+                      : (rangeStart || rangeEnd) && enabled
+                      ? colors.selectedForeground
+                      : rangeInterior && enabled
+                      ? colors.rangeForeground ?? colors.foreground
+                      : (enabled && !selected && !isToday
+                                ? widget.dayForegroundBuilder?.call(
+                                    date,
+                                    selected,
+                                    enabled,
+                                    inMonth,
+                                  )
+                                : null) ??
+                            hyperOsForeground ??
+                            builtInForeground;
+                  final highlightMargin = widget.dayHighlightMargin;
+                  final separateHighlight =
+                      !fullCell &&
+                      widget.hyperOsDayStyles &&
+                      !rangeSelected &&
+                      highlightMargin != null &&
+                      highlightMargin.isNonNegative &&
+                      highlightMargin.horizontal.isFinite &&
+                      highlightMargin.vertical.isFinite;
+                  return Semantics(
+                    button: true,
+                    selected: selected,
+                    focused:
+                        _focusNode.hasFocus &&
+                        _keyboardDate != null &&
+                        date == _keyboardDate,
+                    enabled: enabled,
+                    label: localizations.formatFullDate(date),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: enabled ? () => _activateDay(date) : null,
+                      onTapDown: enabled && fullCell
+                          ? (_) => setState(() => _pressedDay = date)
+                          : null,
+                      onTapUp: enabled && fullCell
+                          ? (_) => setState(() => _pressedDay = null)
+                          : null,
+                      onTapCancel: enabled && fullCell
+                          ? () => setState(() => _pressedDay = null)
+                          : null,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => Center(
+                          child: SizedBox(
+                            width: rangeSelected || fullCell
+                                ? constraints.maxWidth
+                                : math.min(
+                                    math.max(
+                                      MiuixCalendarDefaults.dayExtent,
+                                      numberSize.width + 8,
+                                    ),
+                                    constraints.maxWidth,
+                                  ),
+                            // Keep the paint/adornment plane in sync with the
+                            // resolved row height, including larger accessible rows.
+                            height: math.min(cellExtent, constraints.maxHeight),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                // Only inset the paint; lunar labels and corner
+                                // badges retain their space at larger text scales.
+                                Padding(
+                                  padding: rangeSelected
+                                      ? EdgeInsets.only(
+                                          top: widget.dayMargin.top,
+                                          bottom: widget.dayMargin.bottom,
+                                        )
+                                      : widget.dayMargin,
+                                  child: AnimatedContainer(
+                                    key: fullCell
+                                        ? ValueKey(
+                                            'calendar-highlight-${date.year}-${date.month}-${date.day}',
+                                          )
+                                        : null,
+                                    duration: reduceMotion
+                                        ? Duration.zero
+                                        : fullCell
+                                        ? const Duration(milliseconds: 180)
+                                        : hyperOs4.pickerStageMotion,
+                                    curve: Curves.easeOutCubic,
+                                    decoration: BoxDecoration(
+                                      color: separateHighlight
+                                          ? customDayFill ?? Colors.transparent
+                                          : dayFill,
+                                      border: separateHighlight
+                                          ? null
+                                          : dayBorder,
+                                      borderRadius: dayRadius,
+                                    ),
+                                  ),
+                                ),
+                                if (separateHighlight && (isToday || selected))
+                                  Padding(
+                                    padding: highlightMargin,
+                                    child: AnimatedContainer(
+                                      key: ValueKey(
+                                        'calendar-highlight-${date.year}-${date.month}-${date.day}',
+                                      ),
+                                      duration: reduceMotion
+                                          ? Duration.zero
+                                          : hyperOs4.pickerStageMotion,
+                                      curve: Curves.easeOutCubic,
+                                      decoration: BoxDecoration(
+                                        color: isToday
+                                            ? colors.selectedBackground
+                                            : Colors.transparent,
+                                        border: isToday
+                                            ? null
+                                            : Border.all(
+                                                color:
+                                                    colors.selectedBackground,
+                                                width: 1.8,
+                                              ),
+                                        borderRadius: dayRadius,
+                                      ),
+                                    ),
+                                  ),
+                                Align(
+                                  alignment: widget.dayNumberAlignment,
+                                  child: Text(
+                                    widget.showAdjacentMonthDays || inMonth
+                                        ? '${date.day}'
+                                        : '',
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: foreground,
+                                          fontWeight:
+                                              (selected || isToday) &&
+                                                  widget.hyperOsDayStyles
+                                              ? FontWeight.w700
+                                              : selected
+                                              ? FontWeight.w600
+                                              : null,
+                                        ),
+                                  ),
+                                ),
+                                if (widget.dayAdornmentBuilder
+                                    case final builder?)
+                                  IgnorePointer(
+                                    child: builder(
+                                      context,
+                                      date,
+                                      selected,
+                                      enabled,
+                                    ),
+                                  ),
+                              ],
                             ),
-                        ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
-            );
-          },
+            ],
+          ),
         ),
       ],
     );
@@ -1222,16 +1294,40 @@ class _MiuixCalendarState extends State<MiuixCalendar> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final requested = widget.dayExtent;
-              final preferred = requested != null && requested.isFinite
+              final configured = requested != null && requested.isFinite
                   ? math.max(44.0, requested)
                   : MiuixCalendarDefaults.dayExtent;
-              final headerHeight = (widget.showHeader ? 52.0 : 0.0) + 32.0;
+              final minimumExtent = math.max(
+                44.0,
+                numberSize.height + widget.dayMargin.vertical + 8,
+              );
+              final preferred = math.max(configured, minimumExtent);
+              // 标题自然换行；仅在受限高度计算滚动空间时测量默认标题。
+              final titleStyle = DefaultTextStyle.of(context).style.merge(
+                Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              );
+              final titleHeight = textSize(
+                localizations.formatMonthYear(month),
+                titleStyle,
+                width: math.max(1.0, constraints.maxWidth - 96),
+              ).height;
+              final headerHeight =
+                  (widget.showHeader ? math.max(52.0, titleHeight) : 0.0) +
+                  weekdayHeight;
               final rows = gridCellCount / 7;
               final available = constraints.hasBoundedHeight
                   ? (constraints.maxHeight - headerHeight) / rows
                   : preferred;
-              final extent = math.min(preferred, math.max(44.0, available));
-              final child = content(extent);
+              final extent = math.min(
+                preferred,
+                math.max(minimumExtent, available),
+              );
+              final child = content(
+                extent,
+                math.max(constraints.maxWidth, (numberSize.width + 8) * 7),
+              );
               // 小窗口保持可达的日期热区，空间不足时允许纵向滚动。
               // Preserve day targets and scroll vertically in very short hosts.
               return constraints.hasBoundedHeight &&

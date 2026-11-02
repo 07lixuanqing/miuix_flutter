@@ -325,6 +325,17 @@ class MiuixNavigationPageTransitionsBuilder extends PageTransitionsBuilder {
     final routeCurve = MiuixNavigationTransitionMotion.programmaticCurve(
       navMotion,
     );
+    // 有明确内容来源时使用容器展开，普通页面仍保持原有横向导航。
+    final shared = _miuixSharedRoutes[route];
+    if (shared != null) {
+      return _MiuixSharedViewTransition(
+        route: route,
+        capture: shared,
+        animation: animation,
+        secondaryAnimation: secondaryAnimation,
+        child: child,
+      );
+    }
     return _MiuixPredictivePageTransition(
       route: route,
       child: child,
@@ -355,7 +366,10 @@ class MiuixNavigationPageTransitionsBuilder extends PageTransitionsBuilder {
                   animation,
                   curve: routeCurve,
                 );
-          final secondary = hasCoveredPredictiveTrack
+          // 共享展开覆盖的来源页不做侧滑，保持真实卡片落点不动。
+          final secondary = _miuixSharedCovers[route] != null
+              ? 0.0
+              : hasCoveredPredictiveTrack
               ? backGesture.resolveTrack(secondaryAnimation.value, routeCurve)
               : MiuixNavigationTransitionMotion.resolve(
                   secondaryAnimation,

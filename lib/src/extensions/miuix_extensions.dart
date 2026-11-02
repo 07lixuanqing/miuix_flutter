@@ -25,6 +25,8 @@ export 'interaction/miuix_command_palette.dart';
 export 'interaction/miuix_file_drop_zone.dart';
 export 'interaction/miuix_swipe_action.dart';
 export 'layout/miuix_adaptive_layout.dart';
+// 同行卡片按当前内容等高，支持内部使用 LayoutBuilder 的响应式内容。
+export 'layout/miuix_equal_height_row.dart';
 export 'layout/miuix_sliver_top_app_bar.dart';
 export 'presentation/miuix_empty_state_view.dart';
 export 'presentation/miuix_list_section.dart';

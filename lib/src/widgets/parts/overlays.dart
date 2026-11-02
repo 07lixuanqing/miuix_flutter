@@ -1378,6 +1378,54 @@ class _MiuixBottomSheetPredictiveBackObserverState
   Widget build(BuildContext context) => _MiuixBackGuard(child: widget.child);
 }
 
+// 返回值在 pop 开始时交给调用者，退出动画仍会继续使用控制器。
+// 控制器由 Route 持有，直到 Overlay 子树卸载后再释放。
+// 这样调用方立即切换主题、字号或页面也不会重用已销毁的监听器。
+class _MiuixWindowBottomSheetRoute<T> extends RawDialogRoute<T> {
+  // 转发原有遮罩和过渡参数，只调整资源归属，不新增另一套弹层动画。
+  _MiuixWindowBottomSheetRoute({
+    required this.behavior,
+    required this.backProgress,
+    required this.ownsController,
+    required this.onDismissRequest,
+    required this.onDismissFinished,
+    required super.pageBuilder,
+    required super.barrierDismissible,
+    required super.barrierLabel,
+    required super.barrierColor,
+    required super.transitionDuration,
+    required super.transitionBuilder,
+  });
+
+  // 调用者传入的行为控制器仍由调用者管理，不随一次弹层销毁。
+  final MiuixBottomSheetController behavior;
+  // 手势进度对象只属于单次弹层，不与后续弹层共享。
+  final _MiuixBottomSheetBackProgress backProgress;
+  // 所有权来自 show 的输入，不在退出时猜测控制器是否还有监听者。
+  final bool ownsController;
+  // 请求回调有外层幂等保护，程序移除路由也保持请求早于完成。
+  final VoidCallback onDismissRequest;
+  // 关闭完成与确认结果分开，只有真正移出Overlay才发出此通知。
+  final VoidCallback? onDismissFinished;
+
+  @override
+  void dispose() {
+    // 路由可能由返回、确认、拖动或程序移除结束，出口共用同一份清理。
+    // Route 的销毁晚于退出动画和页面监听器卸载，不绑定 popped Future。
+    try {
+      onDismissRequest();
+      // 完成通知发生在资源释放前，回调可以完成外部状态同步。
+      onDismissFinished?.call();
+    } finally {
+      // 用户完成回调抛错时也必须释放本次创建的手势和行为资源。
+      backProgress.dispose();
+      if (ownsController) behavior.dispose();
+      // 最后释放父路由资源，外部传入的行为对象仍可继续使用。
+      super.dispose();
+    }
+  }
+}
+
 /// Bottom sheet helper.
 class MiuixBottomSheet {
   /// Shows a modal bottom sheet.
@@ -1422,9 +1470,12 @@ class MiuixBottomSheet {
       }
     }
 
-    final future = showGeneralDialog<T>(
-      context: context,
-      useRootNavigator: true,
+    final route = _MiuixWindowBottomSheetRoute<T>(
+      behavior: behavior,
+      backProgress: backProgress,
+      ownsController: ownsController,
+      onDismissRequest: requestDismiss,
+      onDismissFinished: onDismissFinished,
       // A custom barrier reads the live behavior controller. A route-level
       // ModalBarrier cannot change dismissibility after it is constructed.
       barrierDismissible: false,
@@ -1472,14 +1523,12 @@ class MiuixBottomSheet {
       transitionBuilder: (context, animation, secondaryAnimation, child) =>
           child,
     );
-    return future.whenComplete(() {
-      requestDismiss();
-      onDismissFinished?.call();
-      backProgress.dispose();
-      if (ownsController) {
-        behavior.dispose();
-      }
-    });
+    // 保留原有结果时机：确认后可立即应用设置，不必等待退出动画。
+    // 资源释放和完成回调统一交给 Route.dispose，避免主题重建时提前销毁。
+    return Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push<T>(route).whenComplete(requestDismiss);
   }
 }
 

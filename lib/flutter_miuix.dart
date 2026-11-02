@@ -24,6 +24,8 @@ export 'src/theme/miuix_theme.dart';
 export 'src/widgets/miuix_widgets.dart';
 // 长标题与正文共用视口，应用不再维护另一份固定头部弹窗布局。
 export 'src/widgets/miuix_dialog_scroll_body.dart';
+// 保留页复用最后可见视口，避免背景页面跟着前台页面重复排版。
+export 'src/widgets/miuix_retained_viewport.dart';
 
 export 'src/icons/miuix_icon_theme.dart';
 export 'src/icons/miuix_icon_interaction.dart';

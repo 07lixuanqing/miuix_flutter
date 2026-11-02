@@ -17,12 +17,23 @@ import 'package:flutter_miuix/flutter_miuix.dart';
 | --- | --- |
 | 自适应布局 | `MiuixAdaptiveScaffold`、`MiuixAdaptiveContentFrame`、`MiuixNavigationDrawer` |
 | 主从分栏 | `MiuixSplitView`、`MiuixResizablePane` |
+| 同行等尺寸卡片 | `MiuixEqualHeightRow` |
 | 日历日程 | `MiuixDateRangePicker`、`MiuixMonthPicker`、`MiuixYearPicker`、`MiuixWeekCalendar`、`MiuixAgendaView` |
 | 集合编辑 | `MiuixReorderableList`、`MiuixDragHandle`、`MiuixTreeView` |
 | 选择与标签 | `MiuixSearchableSelect`、`MiuixComboBox`、`MiuixTagInput`、`MiuixChip` |
 | 结构化数据 | `MiuixProcessStepper`、`MiuixDataTable` |
 | 滚动标题 | `MiuixSliverTopAppBar` |
 | 桌面效率 | `MiuixFileDropZone`、`MiuixCommandPalette` |
+
+## 同行等尺寸卡片
+
+在纵向滚动页面中用 `MiuixEqualHeightRow(children: [...])` 包住同行卡片。
+各项等宽，行高取本行内容的最大自然高度，默认列间距为16。子项应接受最小高度，
+例如 `MiuixCard` 内放普通 `Column`；不在无界高度内使用 `Expanded`。
+组件在同一次布局中测量和补齐，不使用首帧回调或固有尺寸查询，支持内部含
+`LayoutBuilder` 的响应式卡片。子内容异步更新时，同行可增高也可收缩。
+父级须提供有限宽度，并为正文留够纵向空间；不要再包 `IntrinsicHeight`。
+组件不裁剪正文、不限制行数，也不把不同行的卡片拉成统一高度。
 
 ## 骨架屏与加载占位
 
@@ -249,6 +260,10 @@ MiuixSearchableSelect<String>(
 `MiuixChip` 默认采用 HyperOS 4 低高度玻璃胶囊，选中时语义色连续过渡；需要
 旧版不透明外观时显式使用 `MiuixChip.source`。模糊和染色强度由主题 token 与
 应用的五档玻璃设置共同决定。
+芯片表面保留连续的 1dp 主题描边；交互层不重复裁剪内容。长标签按可用宽度
+自然换行，200% 字号及禁用状态也保留全文。
+`MiuixTreeRowLayout` 为树与懒加载目录共用内容／操作布局：行高是下限，窄屏
+大字号时操作移到内容下方；标题和说明由调用方自然换行。
 
 系统启用“减少动态效果”时，`MiuixTagInput` 的聚焦和校验描边会直接到达最终
 状态，不再播放隐式过渡；标签提交、拒绝回调、触觉反馈和键盘输入能力保持不变。
@@ -480,6 +495,9 @@ await MiuixCommandPalette.show(
 
 ## 已优化的复合控件
 
+- `MiuixBottomSheet.show`：确认结果在关闭开始时返回，允许调用方立即应用主题。
+  内部控制器和 `onDismissFinished` 随路由实际退出后释放/通知，退出动画期间
+  改主题或字号不会提前销毁监听器；外部传入的行为控制器仍由调用者管理。
 - `MiuixActionSheet`：标题、说明、取消项、禁用/选中/破坏性动作、玻璃和震动。
   默认沿用 HyperOS 4 BottomSheet 的单层局部玻璃；只有明确兼容旧界面时才传入
   `glass: false`。
@@ -527,6 +545,12 @@ await MiuixCommandPalette.show(
   16dp 不透明卡片，业务状态色不会扩散为整块高饱和背景。
 
 ## 控制器与平台注意事项
+
+- `MiuixRetainedViewport(active: ..., child: ...)` 用于已经保留状态的标签页。
+  与 `IndexedStack` 或 `Offstage` 配合，将隐藏页的子视口保持为最后可见尺寸，
+  避免另一个页面的标题栏、分屏或键盘变化反复触发布局。再次显示时立即采用
+  当前约束。该组件不隐藏页面、不缓存数据，也不代替 `TickerMode`；无界约束
+  按子内容自然布局。隐藏期数据刷新仍由应用自己的状态绑定负责合并。
 
 - 调用方创建的控制器、`FocusNode`、`TextEditingController` 和
   `ScrollController` 必须由调用方释放；组件内部创建的状态会自动释放。

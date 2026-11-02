@@ -6,6 +6,11 @@ void main() {
   testWidgets('highlight contains lunar and keeps badges outside', (
     tester,
   ) async {
+    // 六周月份也要给定完整测试高度，避免运行日期改变后压缩 dayExtent。
+    // 这里验证高亮与农历的包含关系，不让默认600px窗口改变测试几何基准。
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final other = DateTime(now.year, now.month, now.day == 15 ? 16 : 15);

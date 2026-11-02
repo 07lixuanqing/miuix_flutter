@@ -33,6 +33,10 @@ part 'parts/text_field_tests.dart';
 part 'parts/selection_control_tests.dart';
 part 'parts/selection_progress_tests.dart';
 part 'parts/overlay_color_tests.dart';
+part 'parts/overlay_window_lifecycle_tests.dart';
+part 'parts/overlay_feedback_picker_tests.dart';
+part 'parts/overlay_host_sheet_tests.dart';
+part 'parts/overlay_dropdown_routes_tests.dart';
 
 /// Verifies that the public package can build representative widgets.
 void main() {
